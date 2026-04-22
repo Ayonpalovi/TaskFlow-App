@@ -60,7 +60,7 @@ export default function LoginPage() {
               <div><div className="font-mono text-2xl">30d</div><div className="text-zinc-500 label-xs">Perf Window</div></div>
             </div>
           </div>
-          <div className="text-xs text-zinc-500 font-mono">© TaskFlow. Built for studios that ship.</div>
+          <div className="text-xs text-zinc-500 font-mono">© TaskFlow. <a href="/showcase" className="hover:text-white transition-all">Browse editor showcase →</a></div>
         </div>
       </div>
 

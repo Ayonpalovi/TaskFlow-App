@@ -12,7 +12,7 @@ import jwt as pyjwt
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, WebSocket, WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
@@ -35,7 +35,7 @@ api = APIRouter(prefix="/api")
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origin_regex=".*",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -689,6 +689,156 @@ async def admin_stats(admin: dict = Depends(require_role("admin"))):
         "clients_count": clients_count,
     }
 
+@api.get("/stats/trends")
+async def stats_trends(admin: dict = Depends(require_role("admin"))):
+    """Daily revenue + task counts for last 30 days."""
+    tasks = await db.tasks.find({}, {"_id": 0}).to_list(5000)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    days = {}
+    for i in range(30):
+        d = (cutoff + timedelta(days=i)).date().isoformat()
+        days[d] = {"date": d, "revenue": 0, "cost": 0, "profit": 0, "tasks": 0, "completed": 0}
+    for t in tasks:
+        ca = t.get("created_at", "")
+        if not ca or ca[:10] not in days:
+            continue
+        d = ca[:10]
+        days[d]["tasks"] += 1
+        days[d]["revenue"] += t.get("revenue", 0) or 0
+        days[d]["cost"] += t.get("cost", 0) or 0
+        days[d]["profit"] = days[d]["revenue"] - days[d]["cost"]
+        if t.get("status") == "completed":
+            days[d]["completed"] += 1
+    rows = [days[k] for k in sorted(days.keys())]
+    # status breakdown
+    status_counts = {}
+    for t in tasks:
+        s = t.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+    return {"daily": rows, "status_breakdown": [{"name": k, "value": v} for k, v in status_counts.items()]}
+
+@api.get("/stats/revisions")
+async def stats_revisions(admin: dict = Depends(require_role("admin"))):
+    """Revision counts per editor and per client."""
+    tasks = await db.tasks.find({}, {"_id": 0}).to_list(5000)
+    editors = {}; clients = {}
+    for t in tasks:
+        revs = len(t.get("revisions", []))
+        if revs == 0: continue
+        ed = t.get("assigned_editor_id"); cl = t.get("client_id")
+        if ed:
+            editors[ed] = editors.get(ed, 0) + revs
+        if cl:
+            clients[cl] = clients.get(cl, 0) + revs
+    out_editors = []
+    for uid, count in sorted(editors.items(), key=lambda x: -x[1]):
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+        if u:
+            out_editors.append({"user": scrub_user(u, viewer_role="admin"), "revision_count": count})
+    out_clients = []
+    for uid, count in sorted(clients.items(), key=lambda x: -x[1]):
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+        if u:
+            out_clients.append({"user": scrub_user(u, viewer_role="admin"), "revision_count": count})
+    return {"editors": out_editors, "clients": out_clients}
+
+@api.get("/stats/deadline-risk")
+async def stats_deadline_risk(user: dict = Depends(get_current_user)):
+    """Tasks at risk: within 48h and not completed."""
+    now = datetime.now(timezone.utc)
+    soon = (now + timedelta(hours=48))
+    q = {"status": {"$in": ["active", "pending", "revision", "available"]}}
+    if user["role"] == "editor":
+        q["assigned_editor_id"] = user["id"]
+    elif user["role"] == "client":
+        q["client_id"] = user["id"]
+    tasks = await db.tasks.find(q, {"_id": 0}).to_list(2000)
+    out = []
+    for t in tasks:
+        if not t.get("deadline"): continue
+        try:
+            d = datetime.fromisoformat(t["deadline"]) if "T" in t["deadline"] else datetime.fromisoformat(t["deadline"] + "T23:59:59+00:00")
+            if d.tzinfo is None: d = d.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+        hours_left = (d - now).total_seconds() / 3600
+        if hours_left < 48:
+            out.append({
+                "task_id": t["id"], "title": t["title"], "deadline": t["deadline"],
+                "status": t["status"], "priority": t.get("priority"),
+                "hours_left": round(hours_left, 1),
+                "assigned_editor_id": t.get("assigned_editor_id"),
+                "risk": "overdue" if hours_left < 0 else "high" if hours_left < 12 else "medium",
+            })
+    out.sort(key=lambda x: x["hours_left"])
+    return out
+
+@api.get("/stats/satisfaction")
+async def stats_satisfaction(admin: dict = Depends(require_role("admin"))):
+    """Avg rating per client and per editor."""
+    reviews = await db.reviews.find({}, {"_id": 0}).to_list(5000)
+    by_editor = {}; by_client = {}
+    for r in reviews:
+        eid = r.get("editor_id"); cid = r.get("client_id")
+        if eid:
+            by_editor.setdefault(eid, []).append(r["rating"])
+        if cid:
+            by_client.setdefault(cid, []).append(r["rating"])
+    async def enrich(d):
+        out = []
+        for uid, ratings in d.items():
+            u = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+            if u:
+                out.append({
+                    "user": scrub_user(u, viewer_role="admin"),
+                    "avg_rating": round(sum(ratings) / len(ratings), 2),
+                    "review_count": len(ratings),
+                })
+        out.sort(key=lambda x: -x["avg_rating"])
+        return out
+    return {"editors": await enrich(by_editor), "clients": await enrich(by_client)}
+
+@api.get("/stats/workload")
+async def stats_workload(admin: dict = Depends(require_role("admin"))):
+    """Active task counts per editor — for workload balancing."""
+    editors = await db.users.find({"role": "editor"}, {"_id": 0, "password_hash": 0}).to_list(500)
+    out = []
+    for e in editors:
+        active = await db.tasks.count_documents({"assigned_editor_id": e["id"], "status": "active"})
+        revision = await db.tasks.count_documents({"assigned_editor_id": e["id"], "status": "revision"})
+        pending = await db.tasks.count_documents({"assigned_editor_id": e["id"], "status": "pending"})
+        total = active + revision + pending
+        # capacity = 5 active tasks comfortably
+        load_pct = min(100, round((total / 5) * 100))
+        out.append({
+            "editor": scrub_user(e, viewer_role="admin"),
+            "active": active, "revision": revision, "pending": pending,
+            "total": total, "load_pct": load_pct,
+            "status": "overloaded" if load_pct >= 100 else "busy" if load_pct >= 70 else "available",
+        })
+    out.sort(key=lambda x: -x["total"])
+    return out
+
+@api.get("/showcase")
+async def showcase():
+    """Public: list editors with anonymized stats for a discovery surface."""
+    editors = await db.users.find({"role": "editor"}, {"_id": 0, "password_hash": 0, "email": 0, "real_name": 0}).to_list(500)
+    rows = []
+    for e in editors:
+        m = await compute_editor_metrics(e["id"])
+        rows.append({
+            "anime_name": e.get("anime_name"),
+            "avatar_url": e.get("avatar_url"),
+            "skills": e.get("skills", []),
+            "score": m["score"],
+            "on_time_rate": m["on_time_rate"],
+            "avg_rating": m["avg_rating"],
+            "completed_tasks": m["completed_tasks"],
+            "videos_per_week": m["videos_per_week"],
+        })
+    rows.sort(key=lambda x: x["score"], reverse=True)
+    return rows
+
 @api.get("/calendar")
 async def calendar(admin: dict = Depends(require_role("admin"))):
     tasks = await db.tasks.find({"status": {"$ne": "draft"}}, {"_id": 0}).to_list(1000)
@@ -708,6 +858,79 @@ async def calendar(admin: dict = Depends(require_role("admin"))):
 @api.get("/")
 async def root():
     return {"message": "TaskFlow API", "status": "ok"}
+
+# --- WebSocket Chat ---
+class ConnectionManager:
+    def __init__(self):
+        self.active: dict[str, list[WebSocket]] = {}  # channel -> websockets
+
+    async def connect(self, channel: str, ws: WebSocket):
+        await ws.accept()
+        self.active.setdefault(channel, []).append(ws)
+
+    def disconnect(self, channel: str, ws: WebSocket):
+        if channel in self.active and ws in self.active[channel]:
+            self.active[channel].remove(ws)
+
+    async def broadcast(self, channel: str, msg: dict):
+        dead = []
+        for ws in self.active.get(channel, []):
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(channel, ws)
+
+manager = ConnectionManager()
+
+@app.websocket("/api/ws")
+async def websocket_endpoint(ws: WebSocket, token: str, channel: str):
+    # Auth
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+    except Exception:
+        await ws.close(code=1008); return
+    if not user:
+        await ws.close(code=1008); return
+    # Permission
+    if channel == "group":
+        if user["role"] == "client":
+            await ws.close(code=1008); return
+        ch_q = "group"
+    elif channel.startswith("dm:"):
+        other_id = channel.split("dm:", 1)[1]
+        if user["role"] == "admin":
+            ch_q = f"dm:{other_id}"
+        else:
+            ch_q = f"dm:{user['id']}"
+    else:
+        await ws.close(code=1008); return
+
+    await manager.connect(ch_q, ws)
+    try:
+        while True:
+            data = await ws.receive_json()
+            content = (data.get("content") or "").strip()
+            if not content:
+                continue
+            msg = {
+                "id": str(uuid.uuid4()),
+                "channel": ch_q,
+                "sender_id": user["id"],
+                "sender_name": user.get("anime_name") if user["role"] == "editor" else user.get("real_name"),
+                "sender_role": user["role"],
+                "content": content,
+                "created_at": now_iso(),
+            }
+            await db.messages.insert_one(msg.copy())
+            msg.pop("_id", None)
+            await manager.broadcast(ch_q, msg)
+    except WebSocketDisconnect:
+        manager.disconnect(ch_q, ws)
+    except Exception:
+        manager.disconnect(ch_q, ws)
 
 app.include_router(api)
 

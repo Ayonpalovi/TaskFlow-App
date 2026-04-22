@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 2 testing of new features. Backend: 46/46 tests passed (27 regression + 19 new covering /showcase public+PII scrubbing, /stats/trends|revisions|deadline-risk|satisfaction|workload RBAC + shape, WebSocket /api/ws bad-token close, client-cannot-join-group, broadcast+persistence, CORS bearer-only). Frontend: /showcase renders 3 anonymized editor cards (score, ratings, skills) sorted desc, no PII — PASS. Admin /admin dashboard renders Recharts LineChart (profit/revenue/tasks 30d) + PieChart (status breakdown) + Deadline Risk + Editor Workload w/ progress bars + Client Satisfaction + Revision Counter panels — PASS. Admin /admin/tasks kanban has 4 columns (available|active|revision|completed) with proper data-testid=kanban-column-<status> — PASS. Client /client/panel renders 5 tabs (Preview Drafts, Request Revision, Approve Work, Past Works, Reviews) — PASS. CHAT PAGE /editor/chat CRASHES with 'Cannot read properties of null (reading role)' — critical bug, WS badge cannot be verified via UI because page throws before render completes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ChatPage",
+        "issue": "Uncaught TypeError: Cannot read properties of null (reading 'role') in conversations.map — crash originates from user.role references at lines 108 and 111 when AuthContext user is still null during initial render (or when /auth/me briefly 401s after token refresh). Affects /editor/chat, /admin/chat, /client/chat. Prevents WS badge (data-testid='ws-status') from ever rendering on UI even though the WebSocket backend is fully working (verified via backend tests).",
+        "selector": "/app/frontend/src/pages/ChatPage.jsx lines 108-111",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Chat WebSocket UI",
+        "issue": "Could not verify ws-status live/polling badge on frontend because ChatPage crashes before render. Backend WS broadcast+persistence confirmed working via pytest (TestWebSocket.test_ws_group_broadcast_and_persist).",
+        "affected_selectors": ["[data-testid='ws-status']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration_2_results.xml",
+    "/app/test_reports/pytest/iteration_2_all.xml"
+  ],
+  "action_items": [
+    "Fix ChatPage null-guard: add `if (!user) return null;` (or similar) at top of ChatPage, or change `user?.role` everywhere in the conversations.map render (lines 108, 111). The 401 console errors on page load also suggest AuthContext may briefly mount ChatPage before /auth/me resolves — consider gating Layout children on auth-loaded state.",
+    "Optional: current `localStorage.getItem('taskflow_token')` key in ChatPage (line 44) must match whatever api.js stores on login — verify consistency so WS connects and shows ● live badge.",
+    "Install `websockets` python package to backend requirements if you want the test suite reproducible in CI (it was pip-installed ad-hoc during this run)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1010 lines (up from ~790). Strongly recommended to split into modules: routers/auth.py, routers/users.py, routers/tasks.py, routers/stats.py, routers/chat.py, ws/manager.py.",
+    "ConnectionManager is in-memory on a single process — will not broadcast across multiple uvicorn workers / k8s pods. Fine for single-pod demo; note a Redis pub/sub or similar is needed for scale.",
+    "stats/trends and stats/revisions load full tasks collection into memory (to_list(5000)) and do python-side aggregation — should move to MongoDB $group aggregation as data grows.",
+    "WebSocket handler swallows broad Exception on receive_json with silent disconnect — consider logging at WARN to aid debugging.",
+    "ChatPage.jsx does not null-guard `user` from useAuth(), causing runtime crash. Same `user?.` pattern should be applied across all pages that consume useAuth.",
+    "stats/deadline-risk parses deadline with fromisoformat but many stored deadlines are date-only ('YYYY-MM-DD'); branch handles this but silently skips on any other exception — may hide bad data."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py"
+  ],
+  "success_rate": {"backend": "100% (46/46)", "frontend": "80% — showcase, admin dashboard, kanban, client panel all PASS; chat page CRASHES (high priority fix)"},
+  "test_credentials": "admin@taskflow.com/admin123, editor1..3@taskflow.com/editor123, client1..2@taskflow.com/client123",
+  "seed_data_creation": "Backend auto-seed intact. Tests create a TEST_ risky-deadline task (within 24h) for deadline-risk validation and clean it up.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Next retest: focus on ChatPage after fix — verify data-testid='ws-status' renders, shows ● live when WS connects (should be default), and falls back to ○ polling if WS blocked. Use editor1 on /editor/chat. Backend WS already verified end-to-end. Kanban drag-drop PATCH mechanics were not E2E-tested via dragover/drop simulation (HTML5 native); backend PATCH /api/tasks/{id} already passing. Consider exercising in UI.",
+  "rca of the issue": "ChatPage.jsx crash RCA: React component mounts as child of <Layout allowed={[role]}>. AuthContext async-fetches /auth/me; before it resolves, `user` is null. Once `api.get('/conversations')` resolves (it can resolve before /auth/me in some race conditions), setConversations triggers re-render, and the .map at line 105 dereferences `user.role` at lines 108 and 111 while `user` is still null → TypeError. Reproduction: logout (clear localStorage), login as editor, navigate to /editor/chat — on first render race, throws. Mitigation: add `if (!user) return null;` before render, or use `user?.role`, or hoist allowed-role check inside Layout to block children until auth settled."
+}

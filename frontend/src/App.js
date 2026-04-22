@@ -13,7 +13,9 @@ import EditorAvailable from "./pages/EditorAvailable";
 import EditorProjects from "./pages/EditorProjects";
 import EditorPerformance from "./pages/EditorPerformance";
 import ClientDashboard from "./pages/ClientDashboard";
+import ClientPanel from "./pages/ClientPanel";
 import ChatPage from "./pages/ChatPage";
+import ShowcasePage from "./pages/ShowcasePage";
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -30,6 +32,7 @@ function App() {
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/showcase" element={<ShowcasePage />} />
 
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/tasks" element={<AdminTasks />} />
@@ -48,6 +51,7 @@ function App() {
 
             <Route path="/client" element={<ClientDashboard />} />
             <Route path="/client/projects" element={<ClientDashboard />} />
+            <Route path="/client/panel" element={<ClientPanel />} />
             <Route path="/client/chat" element={<ChatPage mode="client" />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />

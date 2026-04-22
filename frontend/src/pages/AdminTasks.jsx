@@ -2,17 +2,29 @@ import { useEffect, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
 import { api } from "../lib/api";
 
-function TaskCard({ task, onOpen }) {
+function TaskCard({ task, onOpen, onDragStart, riskLeft }) {
+  const isRisky = riskLeft != null && riskLeft < 48;
+  const isOverdue = riskLeft != null && riskLeft < 0;
   return (
-    <button onClick={() => onOpen(task)} data-testid={`task-card-${task.id}`}
-      className="text-left w-full border border-white/10 bg-zinc-900/50 rounded-md p-3 card-hover">
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, task.id)}
+      onClick={() => onOpen(task)}
+      data-testid={`task-card-${task.id}`}
+      className="cursor-grab active:cursor-grabbing border border-white/10 bg-zinc-900/50 rounded-md p-3 card-hover"
+      style={isRisky ? { borderLeftWidth: 3, borderLeftColor: isOverdue ? "#EF4444" : "#F59E0B" } : {}}
+    >
       <div className="text-sm font-medium truncate">{task.title}</div>
-      <div className="flex gap-2 items-center mt-2">
+      <div className="flex gap-1.5 items-center mt-2 flex-wrap">
         <Badge>{task.project_type}</Badge>
         <Badge tone={task.priority === "urgent" ? "bad" : task.priority === "high" ? "warn" : "default"}>{task.priority}</Badge>
+        {(task.revisions || []).length > 0 && <Badge tone="bad">↻ {task.revisions.length}</Badge>}
       </div>
-      <div className="text-xs text-zinc-500 mt-2 font-mono">Due: {task.deadline?.slice(0, 10)}</div>
-    </button>
+      <div className="text-xs text-zinc-500 mt-2 font-mono flex items-center gap-1">
+        Due {task.deadline?.slice(0, 10)}
+        {isRisky && <span className={isOverdue ? "text-red-400" : "text-amber-400"}>· {isOverdue ? "overdue" : "at risk"}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -21,22 +33,40 @@ export default function AdminTasks() {
   const [detail, setDetail] = useState(null);
   const [editors, setEditors] = useState([]);
   const [recs, setRecs] = useState([]);
+  const [risk, setRisk] = useState({});
+  const [dragOver, setDragOver] = useState(null);
 
   const load = async () => {
-    const [t, u] = await Promise.all([api.get("/tasks"), api.get("/users?role=editor")]);
+    const [t, u, r] = await Promise.all([
+      api.get("/tasks"), api.get("/users?role=editor"), api.get("/stats/deadline-risk")
+    ]);
     setTasks(t.data); setEditors(u.data);
+    const rmap = {}; r.data.forEach(x => rmap[x.task_id] = x.hours_left);
+    setRisk(rmap);
   };
   useEffect(() => { load(); }, []);
 
   const openDetail = async (t) => {
     setDetail(t);
-    const { data } = await api.get(`/tasks/${t.id}/recommendations`);
-    setRecs(data);
+    if (t.status === "available") {
+      const { data } = await api.get(`/tasks/${t.id}/recommendations`);
+      setRecs(data);
+    }
   };
 
   const assign = async (editorId) => {
     await api.patch(`/tasks/${detail.id}`, { assigned_editor_id: editorId, status: "active" });
     setDetail(null); load();
+  };
+
+  const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); };
+  const onDrop = async (e, status) => {
+    e.preventDefault();
+    setDragOver(null);
+    const id = e.dataTransfer.getData("text/plain");
+    if (!id) return;
+    await api.patch(`/tasks/${id}`, { status });
+    load();
   };
 
   const columns = [
@@ -48,19 +78,26 @@ export default function AdminTasks() {
 
   return (
     <Layout allowed={["admin"]}>
-      <PageHeader label="Admin / Tasks" title="Project Pipeline" subtitle="Kanban view of all active projects." />
+      <PageHeader label="Admin / Tasks" title="Project Pipeline" subtitle="Drag cards across columns. Red border = at risk." />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {columns.map(col => {
           const items = tasks.filter(t => t.status === col.key);
           return (
-            <div key={col.key} className="bg-zinc-900/50 border border-white/10 rounded-md p-3" data-testid={`kanban-column-${col.key}`}>
+            <div
+              key={col.key}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(col.key); }}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={(e) => onDrop(e, col.key)}
+              className={`bg-zinc-900/50 border rounded-md p-3 transition-all ${dragOver === col.key ? "border-white/40 bg-zinc-800/50" : "border-white/10"}`}
+              data-testid={`kanban-column-${col.key}`}
+            >
               <div className="flex items-center justify-between mb-3 px-1">
                 <div className="label-xs text-zinc-400">{col.label}</div>
                 <span className="font-mono text-xs text-zinc-500">{items.length}</span>
               </div>
-              <div className="space-y-2">
-                {items.map(t => <TaskCard key={t.id} task={t} onOpen={openDetail} />)}
-                {items.length === 0 && <div className="text-xs text-zinc-600 p-3">No items</div>}
+              <div className="space-y-2 min-h-[100px]">
+                {items.map(t => <TaskCard key={t.id} task={t} onOpen={openDetail} onDragStart={onDragStart} riskLeft={risk[t.id]} />)}
+                {items.length === 0 && <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">Drop here</div>}
               </div>
             </div>
           );
@@ -82,9 +119,7 @@ export default function AdminTasks() {
               <div><span className="text-zinc-500">Priority:</span> <Badge tone={detail.priority === "urgent" ? "bad" : "default"}>{detail.priority}</Badge></div>
               <div><span className="text-zinc-500">Deadline:</span> <span className="font-mono">{detail.deadline}</span></div>
               <div><span className="text-zinc-500">Videos:</span> <span className="font-mono">{detail.num_videos}</span></div>
-              <div><span className="text-zinc-500">Duration:</span> {detail.duration || "—"}</div>
-              <div><span className="text-zinc-500">Resolution:</span> {detail.resolution}</div>
-              <div><span className="text-zinc-500">Aspect:</span> {detail.aspect_ratio}</div>
+              <div><span className="text-zinc-500">Revisions:</span> <span className="font-mono">{(detail.revisions || []).length}</span></div>
             </div>
 
             <h3 className="font-semibold mb-2 mt-4">Creative Brief</h3>
@@ -102,10 +137,10 @@ export default function AdminTasks() {
                   {recs.slice(0, 5).map((r, i) => (
                     <div key={r.editor.id} className="flex items-center gap-3 p-3 border border-white/10 rounded-md">
                       <span className="font-mono text-xs text-zinc-500 w-6">#{i+1}</span>
-                      <img src={r.editor.avatar_url} className="w-9 h-9 rounded-md object-cover" alt="" />
+                      {r.editor.avatar_url && <img src={r.editor.avatar_url} className="w-9 h-9 rounded-md object-cover" alt="" />}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium">{r.editor.anime_name}</div>
-                        <div className="text-xs text-zinc-500">Match {r.skill_match}% · Perf {r.performance_score}%</div>
+                        <div className="text-xs text-zinc-500">Match {r.skill_match}% · Perf {r.performance_score}% · Avail {r.availability}%</div>
                       </div>
                       <div className="font-mono text-lg text-emerald-400">{r.overall}%</div>
                       <button data-testid={`assign-editor-${r.editor.id}`} onClick={() => assign(r.editor.id)} className="text-xs px-3 py-1.5 bg-white text-black rounded-md hover:bg-zinc-200">Assign</button>

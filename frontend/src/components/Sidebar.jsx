@@ -25,7 +25,8 @@ const NAV = {
   ],
   client: [
     { to: "/client", icon: House, label: "Dashboard", end: true },
-    { to: "/client/projects", icon: VideoCamera, label: "Projects" },
+    { to: "/client/panel", icon: VideoCamera, label: "Project Hub" },
+    { to: "/client/projects", icon: FolderOpen, label: "Projects" },
     { to: "/client/chat", icon: ChatsCircle, label: "Message Admin" },
   ],
 };

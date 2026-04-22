@@ -5,7 +5,6 @@ export const API = `${BACKEND_URL}/api`;
 
 export const api = axios.create({
   baseURL: API,
-  withCredentials: true,
 });
 
 // Token fallback for browsers blocking third-party cookies

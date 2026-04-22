@@ -1,16 +1,18 @@
 import { useEffect, useState, useRef } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
-import { api } from "../lib/api";
+import { api, API } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
 export default function ChatPage({ mode }) {
-  // mode: "admin" (group + all DMs) | "editor" (group + admin DM) | "client" (admin DM only)
   const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [channel, setChannel] = useState(mode === "client" ? null : "group");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef(null);
   const endRef = useRef(null);
+  const pollRef = useRef(null);
 
   useEffect(() => {
     api.get("/conversations").then(r => {
@@ -19,35 +21,73 @@ export default function ChatPage({ mode }) {
     });
   }, [mode]);
 
+  // WebSocket connection with polling fallback
   useEffect(() => {
     if (!channel) return;
     let stop = false;
-    const fetchMsgs = () => api.get(`/messages?channel=${encodeURIComponent(channel)}`).then(r => { if (!stop) setMessages(r.data); });
-    fetchMsgs();
-    const id = setInterval(fetchMsgs, 3000);
-    return () => { stop = true; clearInterval(id); };
+    const cleanup = () => {
+      if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+
+    // Initial fetch
+    api.get(`/messages?channel=${encodeURIComponent(channel)}`).then(r => { if (!stop) setMessages(r.data); });
+
+    const startPolling = () => {
+      pollRef.current = setInterval(() => {
+        api.get(`/messages?channel=${encodeURIComponent(channel)}`).then(r => { if (!stop) setMessages(r.data); }).catch(() => {});
+      }, 3000);
+    };
+
+    // Try WebSocket
+    try {
+      const token = localStorage.getItem("taskflow_token");
+      if (!token) { startPolling(); return; }
+      const wsUrl = API.replace(/^http/, "ws").replace(/\/api$/, "") + `/api/ws?token=${encodeURIComponent(token)}&channel=${encodeURIComponent(channel)}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      ws.onopen = () => setWsConnected(true);
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
+        } catch {}
+      };
+      ws.onclose = () => { setWsConnected(false); if (!stop && !pollRef.current) startPolling(); };
+      ws.onerror = () => { setWsConnected(false); if (!pollRef.current) startPolling(); };
+    } catch {
+      startPolling();
+    }
+
+    return () => { stop = true; cleanup(); };
   }, [channel]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const send = async () => {
     if (!input.trim() || !channel) return;
-    // Non-admin DMs: always store as dm:<own-id>
     const target = user.role !== "admin" && channel.startsWith("dm:") ? `dm:${user.id}` : channel;
-    await api.post("/messages", { channel: target, content: input });
-    setInput("");
-    const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
-    setMessages(data);
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ content: input }));
+      setInput("");
+    } else {
+      await api.post("/messages", { channel: target, content: input });
+      setInput("");
+      const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
+      setMessages(data);
+    }
   };
 
   const allowed = mode === "admin" ? ["admin"] : mode === "editor" ? ["editor"] : ["client"];
 
   return (
     <Layout allowed={allowed}>
-      <PageHeader label="Communication" title="Messages" subtitle={mode === "client" ? "Direct line to the agency admin." : "Group chat and direct messages."} />
+      <PageHeader label="Communication" title="Messages" subtitle={mode === "client" ? "Direct line to the agency admin." : "Group chat and direct messages."}>
+        <Badge tone={wsConnected ? "good" : "default"} data-testid="ws-status">{wsConnected ? "● live" : "○ polling"}</Badge>
+      </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 h-[70vh]">
-        {/* Sidebar */}
         <aside className="border border-white/10 rounded-md bg-zinc-900/30 overflow-y-auto">
           {mode !== "client" && (
             <button
@@ -87,7 +127,6 @@ export default function ChatPage({ mode }) {
           ))}
         </aside>
 
-        {/* Thread */}
         <div className="border border-white/10 rounded-md bg-zinc-900/30 flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map(m => {
