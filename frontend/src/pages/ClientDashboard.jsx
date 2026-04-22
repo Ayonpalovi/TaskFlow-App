@@ -43,7 +43,7 @@ export default function ClientDashboard() {
 
   return (
     <Layout allowed={["client"]}>
-      <PageHeader label={`Client / ${user.display_name}`} title="Your Projects" subtitle="Preview drafts, request revisions, and approve work." />
+      <PageHeader label={`Client / ${user?.display_name || ""}`} title="Your Projects" subtitle="Preview drafts, request revisions, and approve work." />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <MetricCard label="Active" value={activeTasks.filter(t => t.status === "active").length} tone="warn" />

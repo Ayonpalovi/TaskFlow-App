@@ -19,7 +19,7 @@ export default function EditorDashboard() {
 
   return (
     <Layout allowed={["editor"]}>
-      <PageHeader label={`Editor / ${user.anime_name}`} title="Your Workspace" subtitle="Active tasks, performance, and open requests." />
+      <PageHeader label={`Editor / ${user?.anime_name || ""}`} title="Your Workspace" subtitle="Active tasks, performance, and open requests." />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <MetricCard label="On-time Rate" value={`${perf?.on_time_rate ?? 0}%`} tone={tone(perf?.on_time_rate ?? 0)} />

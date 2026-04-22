@@ -15,11 +15,12 @@ export default function ChatPage({ mode }) {
   const pollRef = useRef(null);
 
   useEffect(() => {
+    if (!user) return;
     api.get("/conversations").then(r => {
       setConversations(r.data);
       if (mode === "client" && r.data[0]) setChannel(`dm:${r.data[0].id}`);
     });
-  }, [mode]);
+  }, [mode, user]);
 
   // WebSocket connection with polling fallback
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function ChatPage({ mode }) {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const send = async () => {
-    if (!input.trim() || !channel) return;
+    if (!input.trim() || !channel || !user) return;
     const target = user.role !== "admin" && channel.startsWith("dm:") ? `dm:${user.id}` : channel;
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -80,6 +81,10 @@ export default function ChatPage({ mode }) {
   };
 
   const allowed = mode === "admin" ? ["admin"] : mode === "editor" ? ["editor"] : ["client"];
+
+  if (!user) {
+    return <Layout allowed={allowed}>{null}</Layout>;
+  }
 
   return (
     <Layout allowed={allowed}>

@@ -55,7 +55,7 @@ export function toneFor(pct) {
   return "bad";
 }
 
-export function Badge({ children, tone = "default" }) {
+export function Badge({ children, tone = "default", ...rest }) {
   const map = {
     default: "bg-zinc-800 text-zinc-300 border-white/10",
     good: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -66,7 +66,7 @@ export function Badge({ children, tone = "default" }) {
     client: "bg-zinc-500/10 text-zinc-300 border-white/10",
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[tone] || map.default}`}>
+    <span {...rest} className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${map[tone] || map.default}`}>
       {children}
     </span>
   );
