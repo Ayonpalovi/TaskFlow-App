@@ -1,0 +1,135 @@
+{
+  "theme": {
+    "mode": "dark",
+    "archetype": "Archetype 4 (Swiss & High-Contrast) + Premium Agency Dark Mode",
+    "rationale": "An OS for a video editing agency requires a dark, command-center feel that minimizes eye strain while allowing vibrant media assets to pop. High-contrast elements establish authority and clarity for data metrics."
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Outfit",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl font-medium",
+      "h4": "text-lg font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "label": "text-xs uppercase tracking-[0.2em]"
+    },
+    "rules": [
+      "Do NOT use Inter, Roboto, or standard sans for headings. Use Outfit.",
+      "Never center headings by default. Left-align for dashboards.",
+      "Use JetBrains Mono for metrics, numbers, and code-like data."
+    ]
+  },
+  "colors": {
+    "background": {
+      "default": "#09090B",
+      "surface": "#18181B",
+      "surface_hover": "#27272A"
+    },
+    "text": {
+      "primary": "#FAFAFA",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A",
+      "inverse": "#000000"
+    },
+    "brand": {
+      "primary": "#FAFAFA",
+      "accent": "#3B82F6",
+      "border": "rgba(255, 255, 255, 0.1)"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444",
+      "online": "#10B981"
+    },
+    "rules": [
+      "No full-screen gradients. Use pure stark dark backgrounds.",
+      "Interactive elements must have high contrast on hover.",
+      "Never use #000000; stick to tinted deep grays like Zinc-950 (#09090B)."
+    ]
+  },
+  "layout": {
+    "spacing_system": "Control Room Grid. Use tight gaps (gap-4 or gap-6) for dashboards. Every pixel must be utilized.",
+    "border_radius": "Max 8px (rounded-md) for subtle roundness. Avoid fully pill-shaped buttons unless it's a specific badge.",
+    "surface_strategy": "Grid Borders: Expose the skeleton for the dashboard. Cards should have 1px solid border (border-white/10) with flat backgrounds. Glassmorphism only for sticky headers/modals (bg-black/60 backdrop-blur-xl).",
+    "rules": [
+      "Mobile-first responsive grids. Always start with grid-cols-1.",
+      "Containers with borders must use internal padding (p-4 or p-6) to prevent text collision.",
+      "Override default stretch behavior on grid with align-items: start when necessary."
+    ]
+  },
+  "components": {
+    "navigation": "Sidebar navigation (w-64) on desktop, hidden behind hamburger on mobile. Must have active state highlights (bg-white/5 border-l-2 border-white).",
+    "cards": "Cardless or flat cards with 1px border-white/10. No heavy box-shadows in dark mode. On hover: -translate-y-1 and border-white/20.",
+    "kanban": "Columns should have a subtle background (bg-zinc-900/50). Cards should have border-white/10. Implement smooth scroll. Status colors: Active (Green), Pending (Yellow), Revision (Red).",
+    "metrics": "Use large JetBrains Mono for numbers. Include small Red/Yellow/Green trend arrows next to them based on performance.",
+    "chat": "Discord-style: list of users on left, chat stream on right. Use neon colored badges for roles (Admin: Red, Editor: Blue, Client: Gray).",
+    "forms": "Use Shadcn Form components. Inputs must have border-white/10 and focus:ring-2 focus:ring-white/20. No native HTML inputs.",
+    "buttons": "Primary: bg-white text-black hover:bg-zinc-200. Secondary: bg-zinc-900 border border-white/10 text-white hover:bg-zinc-800."
+  },
+  "motion": {
+    "rules": [
+      "Hover states for ALL interactive elements.",
+      "Micro-interactions: transition-all duration-200 ease-out.",
+      "Staggered entrance for Kanban cards and Leaderboard rows.",
+      "Respect prefers-reduced-motion."
+    ]
+  },
+  "testing": {
+    "rules": [
+      "All interactive elements MUST include data-testid attribute.",
+      "Use kebab-case, role-based naming (e.g., data-testid='login-submit-button', data-testid='kanban-column-active')."
+    ]
+  },
+  "assets": {
+    "icons": "Use @phosphor-icons/react for dense dashboard elements.",
+    "images": [
+      {
+        "category": "login_background",
+        "description": "Abstract elegant black satin fabric for the login page hero background.",
+        "url": "https://images.pexels.com/photos/31650443/pexels-photo-31650443.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      },
+      {
+        "category": "editor_avatar_1",
+        "description": "Cyberpunk neon portrait for anonymous editor.",
+        "url": "https://images.unsplash.com/photo-1664267665561-24e5c5af0645?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBuZW9uJTIwcG9ydHJhaXQlMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzc2ODg3ODI1fDA&ixlib=rb-4.1.0&q=85"
+      },
+      {
+        "category": "editor_avatar_2",
+        "description": "Cyberpunk neon portrait for anonymous editor.",
+        "url": "https://images.unsplash.com/photo-1614249102574-94b6b58d02ee?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBuZW9uJTIwcG9ydHJhaXQlMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzc2ODg3ODI1fDA&ixlib=rb-4.1.0&q=85"
+      },
+      {
+        "category": "editor_avatar_3",
+        "description": "Cyberpunk neon portrait for anonymous editor.",
+        "url": "https://images.unsplash.com/photo-1668608380298-00f7fbb572d3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwyfHxjeWJlcnB1bmslMjBuZW9uJTIwcG9ydHJhaXQlMjBpbGx1c3RyYXRpb258ZW58MHx8fHwxNzc2ODg3ODI1fDA&ixlib=rb-4.1.0&q=85"
+      },
+      {
+        "category": "client_avatar_1",
+        "description": "Professional client portrait.",
+        "url": "https://images.pexels.com/photos/14585727/pexels-photo-14585727.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      },
+      {
+        "category": "client_avatar_2",
+        "description": "Professional client portrait.",
+        "url": "https://images.pexels.com/photos/36712225/pexels-photo-36712225.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install required dependencies: `yarn add @phosphor-icons/react recharts sonner clsx tailwind-merge`.",
+    "Use pure HTML+Tailwind for grid layout structures. Only use Shadcn for interactive logic (Dialogs, Selects, Dropdowns).",
+    "Kanban board: Ensure items are wrapped in a generic layout. Implement drag and drop visually.",
+    "All javascript files must be used for components. Do not use TypeScript (.tsx). Use .jsx or .js",
+    "Embed `data-testid` in EVERY actionable item (Buttons, links, inputs).",
+    "Strictly follow the color codes for performance metrics: Green >= 90%, Yellow 70-89%, Red < 70%.",
+    "Render the online status as an absolute positioned green dot (bg-emerald-500) on the bottom right of the Avatar.",
+    "For avatars, use rounded squares for Anime editors and full circles for Clients/Admins to distinguish roles visually."
+  ]
+}
