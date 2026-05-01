@@ -1505,44 +1505,46 @@ async def startup():
         await db.users.update_one({"email": ADMIN_EMAIL.lower()},
                                   {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
 
-    # Seed demo data if empty
-    editor_count = await db.users.count_documents({"role": "editor"})
-    if editor_count == 0:
-        demo_editors = [
-            ("editor1@taskflow.com", "editor123", "John Smith", ["reels", "ads", "motion graphics"]),
-            ("editor2@taskflow.com", "editor123", "Sarah Lee", ["podcast", "documentary", "interviews"]),
-            ("editor3@taskflow.com", "editor123", "Mike Chen", ["vlog", "reels", "youtube"]),
-        ]
-        avatars = [
-            "https://images.unsplash.com/photo-1664267665561-24e5c5af0645?w=200",
-            "https://images.unsplash.com/photo-1614249102574-94b6b58d02ee?w=200",
-            "https://images.unsplash.com/photo-1668608380298-00f7fbb572d3?w=200",
-        ]
-        for i, (email, pw, name, skills) in enumerate(demo_editors):
+    # Seed demo data: ensure all expected demo accounts exist (idempotent)
+    demo_editors = [
+        ("editor1@taskflow.com", "editor123", "John Smith", ["reels", "ads", "motion graphics"]),
+        ("editor2@taskflow.com", "editor123", "Sarah Lee", ["podcast", "documentary", "interviews"]),
+        ("editor3@taskflow.com", "editor123", "Mike Chen", ["vlog", "reels", "youtube"]),
+    ]
+    avatars = [
+        "https://images.unsplash.com/photo-1664267665561-24e5c5af0645?w=200",
+        "https://images.unsplash.com/photo-1614249102574-94b6b58d02ee?w=200",
+        "https://images.unsplash.com/photo-1668608380298-00f7fbb572d3?w=200",
+    ]
+    for i, (email, pw, name, skills) in enumerate(demo_editors):
+        if not await db.users.find_one({"email": email}):
             await db.users.insert_one({
                 "id": str(uuid.uuid4()),
                 "email": email, "password_hash": hash_password(pw),
                 "real_name": name, "anime_name": generate_anime_name(),
                 "role": "editor", "skills": skills, "avatar_url": avatars[i],
+                "xp": 0, "badges": [], "top_videos": [], "charge_per_project": 50 + i * 25,
                 "created_at": now_iso(), "last_seen": None,
             })
-        demo_clients = [
-            ("client1@taskflow.com", "client123", "Acme Corp"),
-            ("client2@taskflow.com", "client123", "Bright Media"),
-        ]
-        client_avatars = [
-            "https://images.pexels.com/photos/14585727/pexels-photo-14585727.jpeg?w=200",
-            "https://images.pexels.com/photos/36712225/pexels-photo-36712225.jpeg?w=200",
-        ]
-        for i, (email, pw, name) in enumerate(demo_clients):
+    demo_clients = [
+        ("client1@taskflow.com", "client123", "Acme Corp"),
+        ("client2@taskflow.com", "client123", "Bright Media"),
+    ]
+    client_avatars = [
+        "https://images.pexels.com/photos/14585727/pexels-photo-14585727.jpeg?w=200",
+        "https://images.pexels.com/photos/36712225/pexels-photo-36712225.jpeg?w=200",
+    ]
+    for i, (email, pw, name) in enumerate(demo_clients):
+        if not await db.users.find_one({"email": email}):
             await db.users.insert_one({
                 "id": str(uuid.uuid4()),
                 "email": email, "password_hash": hash_password(pw),
                 "real_name": name, "anime_name": name,
                 "role": "client", "skills": [], "avatar_url": client_avatars[i],
+                "xp": 0, "badges": [], "top_videos": [],
                 "created_at": now_iso(), "last_seen": None,
             })
-        logger.info("Seeded demo editors + clients")
+    logger.info("Demo data seeded (idempotent)")
 
 @app.on_event("shutdown")
 async def shutdown():

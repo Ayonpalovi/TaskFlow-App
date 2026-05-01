@@ -80,7 +80,7 @@ export default function RegisterPage() {
               <label className="label-xs text-zinc-400 block mb-2">Write the code</label>
               <input data-testid="register-code" required className={inp} placeholder="Access code" value={f.code} onChange={e => setF({ ...f, code: e.target.value })} />
             </div>
-            {err && <div data-testid="register-error" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">{err}</div>}
+            {err && <div data-testid="register-error" role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">{err}</div>}
             <button data-testid="register-submit" type="submit" disabled={busy} className="w-full bg-white text-black font-medium py-3 rounded-md hover:bg-zinc-200 transition-all disabled:opacity-50">
               {busy ? "Creating…" : "Create account"}
             </button>

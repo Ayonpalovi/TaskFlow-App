@@ -63,7 +63,7 @@ export default function AdminPayments() {
                   <td className="p-3 font-mono">{r.completed_this_month}</td>
                   <td className="p-3 font-mono text-amber-400">${r.amount_owed.toLocaleString()}</td>
                   <td className="p-3"><Badge tone={r.status === "paid" ? "good" : "warn"}>{r.status}</Badge></td>
-                  <td className="p-3">{r.status === "unpaid" && r.amount_owed > 0 && (
+                  <td className="p-3">{r.status === "unpaid" && (
                     <button onClick={() => markPaid(r.editor.id)} data-testid={`mark-paid-${r.editor.id}`} className="text-xs px-3 py-1.5 bg-white text-black rounded-md hover:bg-zinc-200">Mark paid</button>
                   )}</td>
                 </tr>
