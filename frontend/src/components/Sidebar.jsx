@@ -1,22 +1,27 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 import {
   House, Kanban, Users, ChatsCircle, Trophy, ChartBar,
   VideoCamera, FolderOpen, ClipboardText, SignOut, CalendarBlank,
+  CheckSquare, CurrencyDollar, UserCircle, Plus,
 } from "@phosphor-icons/react";
 
 const NAV = {
   admin: [
     { to: "/admin", icon: House, label: "Overview", end: true },
+    { to: "/admin/approvals", icon: CheckSquare, label: "Approvals" },
     { to: "/admin/tasks", icon: Kanban, label: "Tasks" },
     { to: "/admin/create", icon: ClipboardText, label: "Create Task" },
     { to: "/admin/users", icon: Users, label: "Team" },
+    { to: "/admin/payments", icon: CurrencyDollar, label: "Payments" },
     { to: "/admin/calendar", icon: CalendarBlank, label: "Calendar" },
     { to: "/admin/leaderboard", icon: Trophy, label: "Leaderboard" },
     { to: "/admin/chat", icon: ChatsCircle, label: "Chat" },
   ],
   editor: [
     { to: "/editor", icon: House, label: "Dashboard", end: true },
+    { to: "/editor/profile", icon: UserCircle, label: "Profile" },
     { to: "/editor/available", icon: FolderOpen, label: "Available" },
     { to: "/editor/projects", icon: VideoCamera, label: "My Projects" },
     { to: "/editor/performance", icon: ChartBar, label: "Performance" },
@@ -25,6 +30,7 @@ const NAV = {
   ],
   client: [
     { to: "/client", icon: House, label: "Dashboard", end: true },
+    { to: "/client/create", icon: Plus, label: "Create Project" },
     { to: "/client/panel", icon: VideoCamera, label: "Project Hub" },
     { to: "/client/projects", icon: FolderOpen, label: "Projects" },
     { to: "/client/chat", icon: ChatsCircle, label: "Message Admin" },
@@ -78,21 +84,24 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-3 border-t border-white/10">
-        <div className="flex items-center gap-3 p-2 mb-2">
-          <div className="relative">
-            {user.avatar_url ? (
-              <img src={user.avatar_url} alt="" className={`w-9 h-9 object-cover ${user.role === "editor" ? "rounded-md" : "rounded-full"}`} />
-            ) : (
-              <div className={`w-9 h-9 bg-zinc-800 grid place-items-center ${user.role === "editor" ? "rounded-md" : "rounded-full"}`}>
-                <span className="text-xs font-medium">{user.display_name?.[0] || "U"}</span>
-              </div>
-            )}
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-zinc-950 rounded-full" />
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-3 p-2 flex-1">
+            <div className="relative">
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="" className={`w-9 h-9 object-cover ${user.role === "editor" ? "rounded-md" : "rounded-full"}`} />
+              ) : (
+                <div className={`w-9 h-9 bg-zinc-800 grid place-items-center ${user.role === "editor" ? "rounded-md" : "rounded-full"}`}>
+                  <span className="text-xs font-medium">{user.display_name?.[0] || "U"}</span>
+                </div>
+              )}
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-zinc-950 rounded-full" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium truncate">{user.display_name}</div>
+              <div className="label-xs text-zinc-500">{user.role}</div>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium truncate">{user.display_name}</div>
-            <div className="label-xs text-zinc-500">{user.role}</div>
-          </div>
+          <NotificationBell />
         </div>
         <button
           data-testid="logout-button"

@@ -7,6 +7,7 @@ import os
 import uuid
 import random
 import logging
+import asyncio
 import bcrypt
 import jwt as pyjwt
 from datetime import datetime, timezone, timedelta
@@ -104,6 +105,26 @@ class UserCreateIn(BaseModel):
     role: Literal["editor", "client"]
     skills: List[str] = []
     avatar_url: Optional[str] = None
+    charge_per_project: float = 0
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str
+    confirm_password: str
+    name: str
+    code: str
+
+class TopVideoIn(BaseModel):
+    url: str
+    title: str = ""
+
+class ReactionIn(BaseModel):
+    emoji: str
+
+class VoiceMessageIn(BaseModel):
+    channel: str
+    audio_data: str
+    duration_sec: float = 0
 
 class TaskCreateIn(BaseModel):
     title: str
@@ -158,10 +179,18 @@ def scrub_user(u: dict, viewer_role: str = None) -> dict:
         "skills": u.get("skills", []),
         "online": is_online(u),
         "last_seen": u.get("last_seen"),
+        "xp": u.get("xp", 0),
+        "level": compute_level(u.get("xp", 0))[0],
+        "level_name": compute_level(u.get("xp", 0))[1],
+        "level_progress_pct": compute_level(u.get("xp", 0))[2],
+        "badges": u.get("badges", []),
+        "top_videos": u.get("top_videos", []),
+        "burnout": u.get("burnout", "low"),
     }
     if viewer_role == "admin":
         out["real_name"] = u.get("real_name")
         out["email"] = u.get("email")
+        out["charge_per_project"] = u.get("charge_per_project", 0)
     return out
 
 def is_online(u: dict) -> bool:
@@ -176,6 +205,123 @@ def is_online(u: dict) -> bool:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+# --- XP / Level / Badge logic ---
+LEVEL_THRESHOLDS = [
+    (1, "Rookie", 0),
+    (2, "Rookie", 50),
+    (3, "Rookie", 120),
+    (4, "Rookie", 220),
+    (5, "Pro Cutter", 350),
+    (6, "Pro Cutter", 500),
+    (7, "Pro Cutter", 680),
+    (8, "Pro Cutter", 880),
+    (9, "Pro Cutter", 1100),
+    (10, "Cinematic Beast", 1400),
+    (15, "Cinematic Beast", 2200),
+    (20, "Editing God", 3200),
+    (25, "Editing God", 4500),
+    (30, "Editing God", 6000),
+]
+
+def compute_level(xp: int):
+    """Returns (level_num, level_name, progress_pct_to_next)."""
+    xp = max(0, int(xp or 0))
+    cur = LEVEL_THRESHOLDS[0]
+    nxt = LEVEL_THRESHOLDS[-1]
+    for i, t in enumerate(LEVEL_THRESHOLDS):
+        if xp >= t[2]:
+            cur = t
+            nxt = LEVEL_THRESHOLDS[i + 1] if i + 1 < len(LEVEL_THRESHOLDS) else t
+    if cur == nxt:
+        return cur[0], cur[1], 100
+    span = nxt[2] - cur[2]
+    pct = round(((xp - cur[2]) / span) * 100, 1) if span > 0 else 100
+    return cur[0], cur[1], min(100, max(0, pct))
+
+BADGE_DEFS = {
+    "first_delivery": {"icon": "🎯", "name": "First Delivery", "desc": "Completed your first project"},
+    "three_in_one_day": {"icon": "⚡", "name": "3 Tasks in 1 Day", "desc": "Delivered 3 projects in 24h"},
+    "zero_revisions_streak": {"icon": "🧠", "name": "Zero Revisions Streak", "desc": "3 deliveries in a row with zero revisions"},
+    "survived_5_urgent": {"icon": "💀", "name": "Survived 5 Urgent", "desc": "Completed 5 urgent-priority tasks"},
+    "level_5": {"icon": "🥋", "name": "Pro Cutter", "desc": "Reached Level 5"},
+    "level_10": {"icon": "🎬", "name": "Cinematic Beast", "desc": "Reached Level 10"},
+    "level_20": {"icon": "👑", "name": "Editing God", "desc": "Reached Level 20"},
+}
+
+async def award_xp(editor_id: str, amount: int, reason: str):
+    u = await db.users.find_one({"id": editor_id})
+    if not u: return
+    new_xp = max(0, (u.get("xp", 0) or 0) + amount)
+    old_level = compute_level(u.get("xp", 0))[0]
+    new_level = compute_level(new_xp)[0]
+    await db.users.update_one({"id": editor_id}, {"$set": {"xp": new_xp}})
+    await create_notification(editor_id, "xp", f"{'+' if amount >= 0 else ''}{amount} XP — {reason}", body=f"You're now at {new_xp} XP.")
+    if new_level > old_level:
+        await create_notification(editor_id, "level_up", f"Level up! → Lv {new_level}", body=compute_level(new_xp)[1])
+        # auto-badge
+        for thr, key in [(5, "level_5"), (10, "level_10"), (20, "level_20")]:
+            if old_level < thr <= new_level:
+                await unlock_badge(editor_id, key)
+
+async def unlock_badge(editor_id: str, key: str):
+    if key not in BADGE_DEFS: return
+    u = await db.users.find_one({"id": editor_id})
+    if not u: return
+    badges = u.get("badges", []) or []
+    if key in badges: return
+    badges.append(key)
+    await db.users.update_one({"id": editor_id}, {"$set": {"badges": badges}})
+    bd = BADGE_DEFS[key]
+    await create_notification(editor_id, "badge", f"Badge unlocked: {bd['name']}", body=bd["desc"])
+
+async def evaluate_badges(editor_id: str):
+    """Re-check and unlock any earned badges."""
+    cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    completed = await db.tasks.find({"assigned_editor_id": editor_id, "status": "completed"}, {"_id": 0}).to_list(2000)
+    if len(completed) >= 1:
+        await unlock_badge(editor_id, "first_delivery")
+    # 3 in 24h
+    recent = [t for t in completed if t.get("completed_at", "") >= cutoff_24h]
+    if len(recent) >= 3:
+        await unlock_badge(editor_id, "three_in_one_day")
+    # zero revisions streak (last 3)
+    completed_sorted = sorted(completed, key=lambda x: x.get("completed_at", ""), reverse=True)[:3]
+    if len(completed_sorted) >= 3 and all(len(t.get("revisions", [])) == 0 for t in completed_sorted):
+        await unlock_badge(editor_id, "zero_revisions_streak")
+    # 5 urgent
+    urgent = [t for t in completed if t.get("priority") == "urgent"]
+    if len(urgent) >= 5:
+        await unlock_badge(editor_id, "survived_5_urgent")
+
+async def compute_burnout(editor_id: str) -> str:
+    active = await db.tasks.count_documents({"assigned_editor_id": editor_id, "status": {"$in": ["active", "submitted", "client_review"]}})
+    revisions = await db.tasks.count_documents({"assigned_editor_id": editor_id, "status": "revision"})
+    urgent = await db.tasks.count_documents({"assigned_editor_id": editor_id, "status": {"$in": ["active", "submitted", "revision"]}, "priority": "urgent"})
+    score = active * 10 + revisions * 15 + urgent * 12
+    if score >= 60: return "high"
+    if score >= 30: return "medium"
+    return "low"
+
+# --- Notifications ---
+async def create_notification(user_id: str, ntype: str, title: str, body: str = "", link: str = None):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "type": ntype,
+        "title": title,
+        "body": body,
+        "link": link,
+        "read": False,
+        "created_at": now_iso(),
+    }
+    await db.notifications.insert_one(doc)
+    return doc
+
+async def notify_role(role: str, ntype: str, title: str, body: str = "", link: str = None):
+    users = await db.users.find({"role": role}, {"id": 1, "_id": 0}).to_list(500)
+    for u in users:
+        await create_notification(u["id"], ntype, title, body, link)
 
 # --- Auth endpoints ---
 @api.post("/auth/login")
@@ -198,7 +344,43 @@ async def logout(response: Response):
 
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
+    user["burnout"] = await compute_burnout(user["id"]) if user["role"] == "editor" else "low"
     return scrub_user(user, viewer_role="admin" if user["role"] == "admin" else user["role"])
+
+REGISTRATION_CODE = "42202010"
+
+@api.post("/auth/register")
+async def register(data: RegisterIn, response: Response):
+    if data.code != REGISTRATION_CODE:
+        raise HTTPException(400, "Incorrect access code")
+    if data.password != data.confirm_password:
+        raise HTTPException(400, "Passwords do not match")
+    if len(data.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    if await db.users.find_one({"email": data.email.lower()}):
+        raise HTTPException(400, "Email already exists")
+    uid = str(uuid.uuid4())
+    doc = {
+        "id": uid,
+        "email": data.email.lower(),
+        "password_hash": hash_password(data.password),
+        "real_name": data.name,
+        "anime_name": generate_anime_name(),
+        "role": "editor",
+        "skills": [],
+        "avatar_url": None,
+        "xp": 0,
+        "badges": [],
+        "top_videos": [],
+        "charge_per_project": 0,
+        "created_at": now_iso(),
+        "last_seen": None,
+    }
+    await db.users.insert_one(doc)
+    token = create_access_token(uid, "editor")
+    await notify_role("admin", "new_editor_signup", f"New editor signed up: {doc['anime_name']}", body=data.email)
+    doc.pop("_id", None); doc.pop("password_hash", None)
+    return {"token": token, "user": scrub_user(doc, viewer_role="editor")}
 
 # --- Users ---
 @api.post("/users")
@@ -215,6 +397,10 @@ async def create_user(data: UserCreateIn, admin: dict = Depends(require_role("ad
         "role": data.role,
         "skills": data.skills,
         "avatar_url": data.avatar_url,
+        "xp": 0,
+        "badges": [],
+        "top_videos": [],
+        "charge_per_project": data.charge_per_project,
         "created_at": now_iso(),
         "last_seen": None,
     }
@@ -240,19 +426,94 @@ async def delete_user(user_id: str, admin: dict = Depends(require_role("admin"))
 
 # --- Projects / Tasks ---
 @api.post("/tasks")
-async def create_task(data: TaskCreateIn, admin: dict = Depends(require_role("admin"))):
+async def create_task(data: TaskCreateIn, user: dict = Depends(get_current_user)):
     tid = str(uuid.uuid4())
-    status = "draft" if data.is_draft else ("active" if data.assigned_editor_id else "available")
+    if user["role"] == "client":
+        # Client-created project: needs admin approval first
+        status = "pending_admin_approval"
+        client_id = user["id"]
+        assigned_editor_id = None
+        is_draft = False
+    elif user["role"] == "admin":
+        status = "draft" if data.is_draft else ("active" if data.assigned_editor_id else "available")
+        client_id = data.client_id
+        assigned_editor_id = data.assigned_editor_id
+        is_draft = data.is_draft
+    else:
+        raise HTTPException(403, "Only admin or client can create tasks")
+
+    payload = data.model_dump()
+    payload["client_id"] = client_id
+    payload["assigned_editor_id"] = assigned_editor_id
+    payload["is_draft"] = is_draft
+
     doc = {
         "id": tid,
         "status": status,
         "created_at": now_iso(),
         "updated_at": now_iso(),
-        **data.model_dump(),
+        "created_by": user["id"],
+        "creator_role": user["role"],
+        "available_at": None,
+        "submitted_at": None,
+        "video_url": None,
+        **payload,
     }
     await db.tasks.insert_one(doc)
     doc.pop("_id", None)
+    if status == "pending_admin_approval":
+        await notify_role("admin", "project_pending_approval", f"New project from client: {data.title}", link=f"/admin/approvals")
+    elif status == "available":
+        doc["available_at"] = now_iso()
+        await db.tasks.update_one({"id": tid}, {"$set": {"available_at": doc["available_at"]}})
+        await notify_role("editor", "new_brief", f"New open brief: {data.project_type}", link="/editor/available")
     return doc
+
+@api.post("/tasks/{task_id}/admin-approve")
+async def admin_approve_project(task_id: str, admin: dict = Depends(require_role("admin"))):
+    t = await db.tasks.find_one({"id": task_id})
+    if not t or t.get("status") != "pending_admin_approval":
+        raise HTTPException(400, "Task not pending approval")
+    await db.tasks.update_one({"id": task_id}, {"$set": {"status": "available", "available_at": now_iso(), "updated_at": now_iso()}})
+    if t.get("client_id"):
+        await create_notification(t["client_id"], "project_approved", f"Your project '{t['title']}' was approved", link="/client/panel")
+    await notify_role("editor", "new_brief", f"New open brief: {t.get('project_type')}", link="/editor/available")
+    return {"ok": True}
+
+@api.post("/tasks/{task_id}/admin-reject")
+async def admin_reject_project(task_id: str, admin: dict = Depends(require_role("admin"))):
+    t = await db.tasks.find_one({"id": task_id})
+    if not t:
+        raise HTTPException(404, "Not found")
+    await db.tasks.update_one({"id": task_id}, {"$set": {"status": "rejected", "updated_at": now_iso()}})
+    if t.get("client_id"):
+        await create_notification(t["client_id"], "project_rejected", f"Your project '{t['title']}' was rejected", link="/client/panel")
+    return {"ok": True}
+
+@api.post("/tasks/{task_id}/submit")
+async def editor_submit(task_id: str, data: dict, user: dict = Depends(require_role("editor"))):
+    t = await db.tasks.find_one({"id": task_id})
+    if not t or t.get("assigned_editor_id") != user["id"]:
+        raise HTTPException(403, "Forbidden")
+    video_url = data.get("video_url", "")
+    note = data.get("note", "")
+    draft = {"id": str(uuid.uuid4()), "url": video_url, "note": note, "uploaded_by": user["id"], "uploaded_at": now_iso()}
+    await db.tasks.update_one({"id": task_id}, {
+        "$push": {"drafts": draft},
+        "$set": {"status": "submitted", "submitted_at": now_iso(), "video_url": video_url, "updated_at": now_iso()},
+    })
+    await notify_role("admin", "video_pending_approval", f"Video submitted: {t['title']}", link="/admin/approvals")
+    return {"ok": True, "draft": draft}
+
+@api.post("/tasks/{task_id}/admin-approve-video")
+async def admin_approve_video(task_id: str, admin: dict = Depends(require_role("admin"))):
+    t = await db.tasks.find_one({"id": task_id})
+    if not t or t.get("status") != "submitted":
+        raise HTTPException(400, "Task not pending video approval")
+    await db.tasks.update_one({"id": task_id}, {"$set": {"status": "client_review", "updated_at": now_iso()}})
+    if t.get("client_id"):
+        await create_notification(t["client_id"], "draft_ready", f"Draft ready for '{t['title']}'", link="/client/panel")
+    return {"ok": True}
 
 @api.get("/tasks")
 async def list_tasks(
@@ -273,6 +534,8 @@ async def list_tasks(
             q["assigned_editor_id"] = user["id"]
     elif user["role"] == "client":
         q["client_id"] = user["id"]
+        # Hide pending_admin_approval from client UI? actually they should see their own pending too
+        # Keep all - client sees all their tasks across statuses
 
     items = await db.tasks.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
 
@@ -406,6 +669,8 @@ async def request_revision(task_id: str, data: RevisionIn, user: dict = Depends(
     rev = {"id": str(uuid.uuid4()), "note": data.note, "created_at": now_iso()}
     await db.tasks.update_one({"id": task_id},
         {"$push": {"revisions": rev}, "$set": {"status": "revision", "updated_at": now_iso()}})
+    if t.get("assigned_editor_id"):
+        await create_notification(t["assigned_editor_id"], "revision_requested", f"Revision requested: {t['title']}", body=data.note, link="/editor/projects")
     return rev
 
 @api.post("/tasks/{task_id}/approve")
@@ -413,8 +678,28 @@ async def approve_task(task_id: str, user: dict = Depends(require_role("client")
     t = await db.tasks.find_one({"id": task_id})
     if not t or t.get("client_id") != user["id"]:
         raise HTTPException(403, "Forbidden")
+    completed_at = now_iso()
     await db.tasks.update_one({"id": task_id},
-        {"$set": {"status": "completed", "completed_at": now_iso(), "updated_at": now_iso()}})
+        {"$set": {"status": "completed", "completed_at": completed_at, "updated_at": completed_at}})
+    # XP awards
+    editor_id = t.get("assigned_editor_id")
+    if editor_id:
+        await award_xp(editor_id, 10, "project completed")
+        # On-time vs late
+        try:
+            d = t.get("deadline", "")
+            d_dt = datetime.fromisoformat(d) if "T" in d else datetime.fromisoformat(d + "T23:59:59+00:00")
+            if d_dt.tzinfo is None: d_dt = d_dt.replace(tzinfo=timezone.utc)
+            c_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+            if c_dt <= d_dt:
+                await award_xp(editor_id, 5, "on-time delivery")
+            else:
+                await award_xp(editor_id, -5, "late delivery")
+        except Exception:
+            pass
+        await evaluate_badges(editor_id)
+        await create_notification(editor_id, "client_approved", f"Client approved '{t['title']}'! +10 XP", link="/editor/projects")
+    await notify_role("admin", "client_approved", f"Project completed: {t['title']}")
     return {"ok": True}
 
 @api.post("/tasks/{task_id}/review")
@@ -859,6 +1144,256 @@ async def calendar(admin: dict = Depends(require_role("admin"))):
 async def root():
     return {"message": "TaskFlow API", "status": "ok"}
 
+# --- Notifications ---
+@api.get("/notifications")
+async def list_notifications(user: dict = Depends(get_current_user)):
+    items = await db.notifications.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    return items
+
+@api.post("/notifications/{nid}/read")
+async def mark_read(nid: str, user: dict = Depends(get_current_user)):
+    await db.notifications.update_one({"id": nid, "user_id": user["id"]}, {"$set": {"read": True}})
+    return {"ok": True}
+
+@api.post("/notifications/read-all")
+async def mark_all_read(user: dict = Depends(get_current_user)):
+    await db.notifications.update_many({"user_id": user["id"], "read": False}, {"$set": {"read": True}})
+    return {"ok": True}
+
+# --- Editor profile ---
+@api.get("/me/profile")
+async def my_profile(user: dict = Depends(get_current_user)):
+    user["burnout"] = await compute_burnout(user["id"]) if user["role"] == "editor" else "low"
+    p = scrub_user(user, viewer_role="admin" if user["role"] == "admin" else user["role"])
+    if user["role"] == "editor":
+        await evaluate_badges(user["id"])
+        u2 = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+        u2["burnout"] = p["burnout"]
+        return scrub_user(u2, viewer_role="editor") | {"badge_defs": BADGE_DEFS}
+    return p | {"badge_defs": BADGE_DEFS}
+
+@api.get("/editor-profile/{editor_id}")
+async def editor_profile(editor_id: str, viewer: dict = Depends(get_current_user)):
+    if viewer["role"] not in ("admin", "editor"):
+        raise HTTPException(403, "Forbidden")
+    if viewer["role"] == "editor" and viewer["id"] != editor_id:
+        raise HTTPException(403, "Editors can only view their own profile")
+    u = await db.users.find_one({"id": editor_id}, {"_id": 0, "password_hash": 0})
+    if not u or u["role"] != "editor":
+        raise HTTPException(404, "Not found")
+    u["burnout"] = await compute_burnout(editor_id)
+    await evaluate_badges(editor_id)
+    u2 = await db.users.find_one({"id": editor_id}, {"_id": 0, "password_hash": 0})
+    u2["burnout"] = u["burnout"]
+    metrics = await compute_editor_metrics(editor_id)
+    return {"profile": scrub_user(u2, viewer_role=viewer["role"]) | {"badge_defs": BADGE_DEFS}, "metrics": metrics}
+
+@api.put("/me/top-videos")
+async def update_top_videos(data: dict, user: dict = Depends(require_role("editor"))):
+    videos = data.get("videos", [])[:5]
+    await db.users.update_one({"id": user["id"]}, {"$set": {"top_videos": videos}})
+    return {"ok": True, "top_videos": videos}
+
+# --- Reactions ---
+@api.post("/messages/{msg_id}/reactions")
+async def react_message(msg_id: str, data: ReactionIn, user: dict = Depends(get_current_user)):
+    msg = await db.messages.find_one({"id": msg_id}, {"_id": 0})
+    if not msg:
+        raise HTTPException(404, "Not found")
+    reactions = msg.get("reactions", {}) or {}
+    arr = reactions.get(data.emoji, []) or []
+    if user["id"] in arr:
+        arr.remove(user["id"])
+    else:
+        arr.append(user["id"])
+    if not arr:
+        reactions.pop(data.emoji, None)
+    else:
+        reactions[data.emoji] = arr
+    await db.messages.update_one({"id": msg_id}, {"$set": {"reactions": reactions}})
+    return {"reactions": reactions}
+
+# --- Voice notes (base64 stored in message) ---
+@api.post("/messages/voice")
+async def send_voice_message(data: VoiceMessageIn, user: dict = Depends(get_current_user)):
+    if len(data.audio_data) > 700000:
+        raise HTTPException(400, "Audio too large (max ~500KB)")
+    ch = data.channel
+    if ch == "group":
+        if user["role"] == "client":
+            raise HTTPException(403, "Forbidden")
+        ch_q = "group"
+    elif ch.startswith("dm:"):
+        if user["role"] == "admin":
+            ch_q = ch
+        else:
+            ch_q = f"dm:{user['id']}"
+    else:
+        raise HTTPException(400, "Invalid channel")
+    msg = {
+        "id": str(uuid.uuid4()),
+        "channel": ch_q,
+        "sender_id": user["id"],
+        "sender_name": user.get("anime_name") if user["role"] == "editor" else user.get("real_name"),
+        "sender_role": user["role"],
+        "type": "voice",
+        "audio_data": data.audio_data,
+        "duration_sec": data.duration_sec,
+        "content": "",
+        "created_at": now_iso(),
+        "reactions": {},
+    }
+    await db.messages.insert_one(msg.copy())
+    msg.pop("_id", None)
+    return msg
+
+# --- Payments ---
+@api.get("/payments")
+async def list_payments(admin: dict = Depends(require_role("admin"))):
+    editors = await db.users.find({"role": "editor"}, {"_id": 0, "password_hash": 0}).to_list(500)
+    # Current month start
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    out = []
+    for e in editors:
+        completed = await db.tasks.count_documents({
+            "assigned_editor_id": e["id"],
+            "status": "completed",
+            "completed_at": {"$gte": month_start},
+        })
+        rate = e.get("charge_per_project", 0) or 0
+        amount = completed * rate
+        paid = e.get("payment_paid_this_month", False)
+        out.append({
+            "editor": scrub_user(e, viewer_role="admin"),
+            "charge_per_project": rate,
+            "completed_this_month": completed,
+            "amount_owed": amount,
+            "status": "paid" if paid else "unpaid",
+        })
+    out.sort(key=lambda x: -x["amount_owed"])
+    return out
+
+@api.post("/payments/{editor_id}/mark-paid")
+async def mark_paid(editor_id: str, admin: dict = Depends(require_role("admin"))):
+    await db.users.update_one({"id": editor_id}, {"$set": {"payment_paid_this_month": True}})
+    return {"ok": True}
+
+@api.get("/payments/history")
+async def payment_history(admin: dict = Depends(require_role("admin"))):
+    items = await db.payment_history.find({}, {"_id": 0}).sort("month", -1).to_list(500)
+    return items
+
+# --- MVP of the Month ---
+@api.get("/mvp/current")
+async def mvp_current(user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    editors = await db.users.find({"role": "editor"}, {"_id": 0, "password_hash": 0}).to_list(500)
+    best = None
+    for e in editors:
+        m = await compute_editor_metrics(e["id"])
+        completed = await db.tasks.count_documents({
+            "assigned_editor_id": e["id"], "status": "completed",
+            "completed_at": {"$gte": month_start},
+        })
+        score = (m["score"] or 0) + completed * 5 + (e.get("xp", 0) or 0) * 0.1 + len(e.get("badges", [])) * 5
+        if not best or score > best["score"]:
+            best = {"editor": scrub_user(e, viewer_role=user["role"]), "score": round(score, 1),
+                    "completed_this_month": completed, "metrics": m,
+                    "reason": f"{m['on_time_rate']}% on-time, {completed} videos this month, {m['revision_rate']}% revisions"}
+    return best or {}
+
+# --- Background scheduler ---
+SCHEDULER_LOCK = {"running": False}
+
+async def scheduler_tick():
+    """Runs every 60s."""
+    if SCHEDULER_LOCK["running"]:
+        return
+    SCHEDULER_LOCK["running"] = True
+    try:
+        now = datetime.now(timezone.utc)
+        # 1. Auto-assign tasks past 12h available window
+        cutoff = (now - timedelta(hours=12)).isoformat()
+        stale = await db.tasks.find({"status": "available", "available_at": {"$lt": cutoff, "$ne": None}}, {"_id": 0}).to_list(200)
+        for t in stale:
+            # find best-fit editor among requesters (or any editor)
+            reqs = await db.requests.find({"task_id": t["id"], "status": "pending"}, {"_id": 0}).to_list(50)
+            best_editor_id = None
+            best_score = -1
+            candidates = [r["editor_id"] for r in reqs] if reqs else None
+            editors = await db.users.find({"role": "editor"} if not candidates else {"id": {"$in": candidates}},
+                                          {"_id": 0, "password_hash": 0}).to_list(500)
+            t_skills = set([s.lower() for s in t.get("skill_tags", [])])
+            for e in editors:
+                m = await compute_editor_metrics(e["id"])
+                e_skills = set([s.lower() for s in e.get("skills", [])])
+                skill_match = (len(t_skills & e_skills) / len(t_skills) * 100) if t_skills else 50
+                load = await db.tasks.count_documents({"assigned_editor_id": e["id"], "status": {"$in": ["active", "revision", "submitted"]}})
+                avail = max(0, 100 - load * 20)
+                burnout = await compute_burnout(e["id"])
+                burnout_pen = {"low": 0, "medium": 15, "high": 35}[burnout]
+                score = 0.35 * skill_match + 0.25 * m["score"] + 0.2 * avail + 0.1 * m["response_rate"] + 0.1 * (100 - m["revision_rate"] * 2) - burnout_pen
+                if score > best_score:
+                    best_score = score
+                    best_editor_id = e["id"]
+            if best_editor_id:
+                await db.tasks.update_one({"id": t["id"]}, {"$set": {
+                    "assigned_editor_id": best_editor_id, "status": "active",
+                    "auto_assigned": True, "updated_at": now_iso()
+                }})
+                await db.requests.update_many({"task_id": t["id"]}, {"$set": {"status": "auto_resolved"}})
+                await create_notification(best_editor_id, "auto_assigned", f"Auto-assigned: {t['title']}", link="/editor/projects")
+                await notify_role("admin", "auto_assigned", f"Auto-assigned '{t['title']}' (12h window)", link="/admin/tasks")
+
+        # 2. Auto-approve videos past 6h submission window
+        cutoff6 = (now - timedelta(hours=6)).isoformat()
+        stale_v = await db.tasks.find({"status": "submitted", "submitted_at": {"$lt": cutoff6, "$ne": None}}, {"_id": 0}).to_list(200)
+        for t in stale_v:
+            await db.tasks.update_one({"id": t["id"]}, {"$set": {"status": "client_review", "auto_approved": True, "updated_at": now_iso()}})
+            if t.get("client_id"):
+                await create_notification(t["client_id"], "draft_ready", f"Draft auto-approved: {t['title']}", link="/client/panel")
+            await notify_role("admin", "auto_approved", f"Video auto-approved: {t['title']}")
+
+        # 3. Monthly payment reset on 5th day at midnight (run once per month)
+        if now.day == 5:
+            marker = await db.system_state.find_one({"key": "payment_reset"})
+            month_key = now.strftime("%Y-%m")
+            if not marker or marker.get("month") != month_key:
+                # Save to history and reset
+                editors = await db.users.find({"role": "editor"}, {"_id": 0, "password_hash": 0}).to_list(500)
+                prev_month = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+                prev_start = (now.replace(day=1) - timedelta(days=1)).replace(day=1).isoformat()
+                prev_end = now.replace(day=1, hour=0, minute=0, second=0).isoformat()
+                for e in editors:
+                    completed = await db.tasks.count_documents({
+                        "assigned_editor_id": e["id"], "status": "completed",
+                        "completed_at": {"$gte": prev_start, "$lt": prev_end},
+                    })
+                    amount = completed * (e.get("charge_per_project", 0) or 0)
+                    await db.payment_history.insert_one({
+                        "id": str(uuid.uuid4()), "month": prev_month, "editor_id": e["id"],
+                        "editor_name": e.get("anime_name"), "real_name": e.get("real_name"),
+                        "completed": completed, "amount": amount,
+                        "status": "paid" if e.get("payment_paid_this_month") else "unpaid",
+                        "saved_at": now_iso(),
+                    })
+                # reset
+                await db.users.update_many({"role": "editor"}, {"$set": {"payment_paid_this_month": False}})
+                await db.system_state.update_one({"key": "payment_reset"}, {"$set": {"month": month_key, "ran_at": now_iso()}}, upsert=True)
+                await notify_role("admin", "payment_reset", f"Monthly payment cycle reset ({prev_month} archived)")
+    finally:
+        SCHEDULER_LOCK["running"] = False
+
+async def scheduler_loop():
+    while True:
+        try:
+            await scheduler_tick()
+        except Exception as e:
+            logger.error(f"scheduler error: {e}")
+        await asyncio.sleep(60)
+
 # --- WebSocket Chat ---
 class ConnectionManager:
     def __init__(self):
@@ -945,6 +1480,10 @@ async def startup():
     await db.tasks.create_index("id", unique=True)
     await db.messages.create_index("channel")
     await db.requests.create_index("task_id")
+    await db.notifications.create_index("user_id")
+
+    # Start scheduler
+    asyncio.create_task(scheduler_loop())
 
     # Seed admin
     existing = await db.users.find_one({"email": ADMIN_EMAIL.lower()})

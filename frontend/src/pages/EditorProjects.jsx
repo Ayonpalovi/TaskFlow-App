@@ -15,7 +15,7 @@ export default function EditorProjects() {
   useEffect(() => { load(); }, []);
 
   const submitDraft = async () => {
-    await api.post(`/tasks/${detail.id}/drafts`, { url: draftUrl, note: draftNote });
+    await api.post(`/tasks/${detail.id}/submit`, { video_url: draftUrl, note: draftNote });
     setDraftUrl(""); setDraftNote("");
     const { data } = await api.get(`/tasks/${detail.id}`);
     setDetail(data); load();
@@ -23,7 +23,8 @@ export default function EditorProjects() {
 
   const columns = [
     { key: "active", label: "Active" },
-    { key: "pending", label: "Pending" },
+    { key: "submitted", label: "Awaiting Admin" },
+    { key: "client_review", label: "Client Review" },
     { key: "revision", label: "Revision" },
     { key: "completed", label: "Completed" },
   ];
