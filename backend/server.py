@@ -1473,8 +1473,10 @@ app.include_router(api)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @app.on_event("startup")
 async def startup():
+    # Create database indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.tasks.create_index("id", unique=True)
@@ -1482,12 +1484,13 @@ async def startup():
     await db.requests.create_index("task_id")
     await db.notifications.create_index("user_id")
 
-    # Start scheduler
+    # Start background scheduler
     asyncio.create_task(scheduler_loop())
 
-    # Seed admin
-    existing = await db.users.find_one({"email": ADMIN_EMAIL.lower()})
-    if not existing:
+    # Create only the real admin account if missing
+    existing_admin = await db.users.find_one({"email": ADMIN_EMAIL.lower()})
+
+    if not existing_admin:
         await db.users.insert_one({
             "id": str(uuid.uuid4()),
             "email": ADMIN_EMAIL.lower(),
@@ -1497,55 +1500,39 @@ async def startup():
             "role": "admin",
             "skills": [],
             "avatar_url": None,
+            "xp": 0,
+            "badges": [],
+            "top_videos": [],
+            "charge_per_project": 0,
+            "payment_paid_this_month": False,
             "created_at": now_iso(),
             "last_seen": None,
         })
-        logger.info(f"Seeded admin: {ADMIN_EMAIL}")
-    elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-        await db.users.update_one({"email": ADMIN_EMAIL.lower()},
-                                  {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
 
-    # Seed demo data: ensure all expected demo accounts exist (idempotent)
-    demo_editors = [
-        ("editor1@taskflow.com", "editor123", "John Smith", ["reels", "ads", "motion graphics"]),
-        ("editor2@taskflow.com", "editor123", "Sarah Lee", ["podcast", "documentary", "interviews"]),
-        ("editor3@taskflow.com", "editor123", "Mike Chen", ["vlog", "reels", "youtube"]),
-    ]
-    avatars = [
-        "https://images.unsplash.com/photo-1664267665561-24e5c5af0645?w=200",
-        "https://images.unsplash.com/photo-1614249102574-94b6b58d02ee?w=200",
-        "https://images.unsplash.com/photo-1668608380298-00f7fbb572d3?w=200",
-    ]
-    for i, (email, pw, name, skills) in enumerate(demo_editors):
-        if not await db.users.find_one({"email": email}):
-            await db.users.insert_one({
-                "id": str(uuid.uuid4()),
-                "email": email, "password_hash": hash_password(pw),
-                "real_name": name, "anime_name": generate_anime_name(),
-                "role": "editor", "skills": skills, "avatar_url": avatars[i],
-                "xp": 0, "badges": [], "top_videos": [], "charge_per_project": 50 + i * 25,
-                "created_at": now_iso(), "last_seen": None,
-            })
-    demo_clients = [
-        ("client1@taskflow.com", "client123", "Acme Corp"),
-        ("client2@taskflow.com", "client123", "Bright Media"),
-    ]
-    client_avatars = [
-        "https://images.pexels.com/photos/14585727/pexels-photo-14585727.jpeg?w=200",
-        "https://images.pexels.com/photos/36712225/pexels-photo-36712225.jpeg?w=200",
-    ]
-    for i, (email, pw, name) in enumerate(demo_clients):
-        if not await db.users.find_one({"email": email}):
-            await db.users.insert_one({
-                "id": str(uuid.uuid4()),
-                "email": email, "password_hash": hash_password(pw),
-                "real_name": name, "anime_name": name,
-                "role": "client", "skills": [], "avatar_url": client_avatars[i],
-                "xp": 0, "badges": [], "top_videos": [],
-                "created_at": now_iso(), "last_seen": None,
-            })
-    logger.info("Demo data seeded (idempotent)")
+        logger.info(f"Admin created: {ADMIN_EMAIL}")
+
+    else:
+        # Keep Render ADMIN_PASSWORD synced with the admin account
+        if not verify_password(ADMIN_PASSWORD, existing_admin["password_hash"]):
+            await db.users.update_one(
+                {"email": ADMIN_EMAIL.lower()},
+                {
+                    "$set": {
+                        "password_hash": hash_password(ADMIN_PASSWORD),
+                        "updated_at": now_iso(),
+                    }
+                }
+            )
+
+            logger.info(f"Admin password updated from Render environment: {ADMIN_EMAIL}")
+
+        else:
+            logger.info(f"Admin already exists: {ADMIN_EMAIL}")
+
+    logger.info("Startup completed. Demo data seeding is disabled.")
+
 
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
+    logger.info("MongoDB connection closed.")
