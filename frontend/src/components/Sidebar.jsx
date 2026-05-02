@@ -58,8 +58,9 @@ export default function Sidebar() {
               className="w-7 h-7 object-contain"
             />
           </div>
-            <div className="font-semibold text-sm">MotionHolic OS</div>
-            <div className="label-xs text-zinc-500">Agency OS</div>
+          <div>
+            <div className="font-semibold text-sm">Motionholic OS</div>
+            <div className="label-xs text-zinc-500">Creative Agency OS</div>
           </div>
         </div>
       </div>
