@@ -14,8 +14,13 @@ import EditorProjects from "./pages/EditorProjects";
 import EditorPerformance from "./pages/EditorPerformance";
 import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
+import ClientCreateProject from "./pages/ClientCreateProject";
 import ChatPage from "./pages/ChatPage";
 import ShowcasePage from "./pages/ShowcasePage";
+import RegisterPage from "./pages/RegisterPage";
+import EditorProfile from "./pages/EditorProfile";
+import AdminApprovals from "./pages/AdminApprovals";
+import AdminPayments from "./pages/AdminPayments";
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -32,17 +37,21 @@ function App() {
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
 
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/tasks" element={<AdminTasks />} />
             <Route path="/admin/create" element={<AdminCreateTask />} />
+            <Route path="/admin/approvals" element={<AdminApprovals />} />
+            <Route path="/admin/payments" element={<AdminPayments />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/calendar" element={<AdminCalendar />} />
             <Route path="/admin/leaderboard" element={<Leaderboard allowed={["admin"]} />} />
             <Route path="/admin/chat" element={<ChatPage mode="admin" />} />
 
             <Route path="/editor" element={<EditorDashboard />} />
+            <Route path="/editor/profile" element={<EditorProfile />} />
             <Route path="/editor/available" element={<EditorAvailable />} />
             <Route path="/editor/projects" element={<EditorProjects />} />
             <Route path="/editor/performance" element={<EditorPerformance />} />
@@ -52,6 +61,7 @@ function App() {
             <Route path="/client" element={<ClientDashboard />} />
             <Route path="/client/projects" element={<ClientDashboard />} />
             <Route path="/client/panel" element={<ClientPanel />} />
+            <Route path="/client/create" element={<ClientCreateProject />} />
             <Route path="/client/chat" element={<ChatPage mode="client" />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />

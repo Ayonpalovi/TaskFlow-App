@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 4 — major update (XP, badges, payments, MVP, notifications, client-approval, voice notes, reactions, registration). Backend: 34/34 new-feature tests PASS in /app/backend/tests/test_major_update.py. Frontend: all critical pages render with correct data-testids — Register (wrong code 400 fires), Admin MVP card, notification-bell + dropdown, /admin/approvals, /admin/payments (rows rendered), Editor XP banner + MVP self card, /editor/profile (xp-card, xp-progress-bar, burnout-card, badges-card with 7 badge testids, top-videos-card), Chat (ws-status live, voice-record-button, per-message react-btn-<id>, voice-<id> markers). REGRESSION: older suites fail because seed data is broken — editor2/editor3/client2 all return 401 on login; only 1 seeded editor (editor1) + 1 registered user + 1 client exist instead of the documented 3 editors + 2 clients.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "seed / auth/login", "issue": "Seed data regression — editor2@taskflow.com, editor3@taskflow.com, client2@taskflow.com all return 401 'Invalid email or password'. Only editor1 + 1 post-registration 'newuser' editor + client1 exist. Breaks prior regression suite (test_leaderboard, test_recommendations, test_workload, test_conversations, test_lifecycle, test_full_flow, etc.)", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminPayments", "issue": "Unpaid row visible (status badge 'unpaid') but no 'Mark Paid' button rendered inside the row; user cannot mark unpaid editors paid from UI. API /payments/{id}/mark-paid works (backend test passes). Likely missing button render in AdminPayments.jsx row template.", "selector": "[data-testid='payment-row-*'] button", "priority": "HIGH"},
+      {"component": "RegisterPage", "issue": "Wrong access code (server returns 400 'Incorrect access code') does not surface a visible error message via .error / [role=alert] selectors; may rely on a toast outside the form. Users may not know why registration failed.", "selector": ".error, [role='alert']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_major_update.py",
+    "/app/test_reports/pytest/iter4_major.xml",
+    "/app/test_reports/pytest/iter4_full.xml"
+  ],
+  "action_items": [
+    "Re-run seed function to restore editor2@taskflow.com, editor3@taskflow.com, client2@taskflow.com (per /app/memory/test_credentials.md). Ensure seed is idempotent and updates passwords if users exist.",
+    "AdminPayments.jsx — render a Mark-Paid button on rows where status='unpaid'; wire to POST /api/payments/{editor_id}/mark-paid and refresh the row.",
+    "RegisterPage.jsx — surface the 400 error message from POST /auth/register into an inline alert (not just toast), using a <[role='alert']> / .error container with data-testid='register-error'.",
+    "(Cosmetic) Add data-testid='mark-paid-btn-<editor_id>' to the payment button so it's automatable."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1550 lines; consider splitting into routers (auth, tasks, chat, notifications, payments, mvp, scheduler). Size exceeds the 700-line guideline.",
+    "/messages/voice enforces 700000-byte limit but stores audio_data as base64 directly in the message doc — inline with docs' 'mocked for demo' flag. Warn on MongoDB doc-size (16MB cap); acceptable for demo.",
+    "compute_level iterates LEVEL_THRESHOLDS sequentially — correct, math matches spec (0→Rookie/1, 350→Pro Cutter/5, 1400→Cinematic Beast/10, 3200→Editing God/20). Verified.",
+    "scheduler_loop is an asyncio.create_task with bare while True + 60s sleep — OK for demo; in production needs a lock or run-once-per-pod guard (multiple replicas would multiply the work).",
+    "seed_admin/seed_users logic is likely not idempotent for editor2/editor3/client2 (they're missing on the live env). Must verify the seed function runs on startup and upserts these users.",
+    "/payments resets 'payment_paid_this_month' on the 5th via scheduler — payment_history writeback relies on that tick; the lack of a tested history fixture means history regeneration on monthly rollover isn't exercised by current tests.",
+    "Reaction endpoint accepts any emoji string with no allowlist — tiny abuse vector; consider restricting to the documented 5 emoji set (👍🔥💀😂😭)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_major_update.py (new)"
+  ],
+  "success_rate": {
+    "backend_new_features": "34/34 = 100%",
+    "backend_regression": "7 failures (all caused by missing seed users editor2/editor3/client2)",
+    "frontend": "100% of critical elements present; 1 missing button in AdminPayments; 1 error surface gap in RegisterPage"
+  },
+  "test_credentials": "admin@taskflow.com/admin123, editor1@taskflow.com/editor123, client1@taskflow.com/client123. editor2/editor3/client2 credentials documented in /app/memory/test_credentials.md do NOT exist in DB.",
+  "seed_data_creation": "No persistent seed created. Ephemeral: one registered editor via /auth/register (TEST_reg_*@t.com, then deleted), a few TEST_* tasks (all deleted in fixture teardown), chat messages TEST_REACT_*, a tiny voice note to group channel (300-byte base64). These may linger in DB as chat history — harmless.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "test_major_update.py covers all new endpoints; use REACT_APP_BACKEND_URL env var. After main agent restores seed users, re-run /app/backend/tests/ as a whole to confirm prior regression tests pass again. Frontend Mark-Paid button + RegisterPage inline error need UI fix before re-test. Voice recording MediaRecorder not exercised (requires audio device in browser) — button presence verified.",
+  "rca of the issue": "Seed regression RCA — /api/users?role=editor returns 2 editors (NovaReaper47=editor1, MysticWolf47=newuser@taskflow.com). The 'newuser' record suggests someone or some process registered manually and shadowed the expected editor2/editor3 slots, or the seed on startup never ran the 2nd/3rd editor inserts. /app/memory/test_credentials.md lists 3 editors + 2 clients but only 1 of each role is usable. Main agent should inspect the seed_users() function in server.py startup hook, ensure it is idempotent and inserts all 3 editors + 2 clients even if some users already exist. AdminPayments mark-paid RCA — API endpoint works (backend test passes), but in AdminPayments.jsx the payment-row template likely conditional-renders the action button only in a state/branch that's not reached, or the button was omitted. Check the row's JSX for an unpaid-branch button."
+}

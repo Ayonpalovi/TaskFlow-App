@@ -20,17 +20,19 @@ export default function AdminDashboard() {
   const [workload, setWorkload] = useState([]);
   const [satisfaction, setSatisfaction] = useState(null);
   const [revisions, setRevisions] = useState(null);
+  const [mvp, setMvp] = useState(null);
 
   const load = async () => {
-    const [s, tr, t, r, dr, wl, sa, rv] = await Promise.all([
+    const [s, tr, t, r, dr, wl, sa, rv, m] = await Promise.all([
       api.get("/stats/admin"), api.get("/stats/trends"), api.get("/tasks"),
       api.get("/requests"), api.get("/stats/deadline-risk"),
       api.get("/stats/workload"), api.get("/stats/satisfaction"),
-      api.get("/stats/revisions"),
+      api.get("/stats/revisions"), api.get("/mvp/current"),
     ]);
     setStats(s.data); setTrends(tr.data); setTasks(t.data);
     setReqs(r.data.filter(x => x.status === "pending"));
     setRisk(dr.data); setWorkload(wl.data); setSatisfaction(sa.data); setRevisions(rv.data);
+    setMvp(m.data);
   };
   useEffect(() => { load(); }, []);
 
@@ -40,6 +42,22 @@ export default function AdminDashboard() {
   return (
     <Layout allowed={["admin"]}>
       <PageHeader label="Admin / Overview" title="Command Center" subtitle="Pipeline health, revenue, satisfaction, and risk." />
+
+      {/* MVP of the Month */}
+      {mvp && mvp.editor && (
+        <div className="border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-zinc-900/30 rounded-md p-5 mb-6 flex items-center gap-4" data-testid="mvp-card">
+          <div className="text-5xl">👑</div>
+          <div className="flex-1 min-w-0">
+            <div className="label-xs text-amber-400 mb-1">MVP of the Month</div>
+            <div className="text-2xl font-bold">{mvp.editor.anime_name}</div>
+            <div className="text-sm text-zinc-400">{mvp.reason}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-3xl text-amber-400">{mvp.score}</div>
+            <div className="label-xs text-zinc-500">score</div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <MetricCard label="Total Projects" value={stats?.total_projects ?? "—"} />

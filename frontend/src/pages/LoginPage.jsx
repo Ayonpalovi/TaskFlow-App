@@ -105,6 +105,9 @@ export default function LoginPage() {
               <button data-testid="demo-editor-button" onClick={() => fillDemo("editor")} className="text-xs py-2 bg-zinc-900 border border-white/10 rounded-md hover:bg-zinc-800 transition-all">Editor</button>
               <button data-testid="demo-client-button" onClick={() => fillDemo("client")} className="text-xs py-2 bg-zinc-900 border border-white/10 rounded-md hover:bg-zinc-800 transition-all">Client</button>
             </div>
+            <div className="mt-4 text-sm text-zinc-400 text-center">
+              No account? <a href="/register" data-testid="register-link" className="text-white hover:underline">Sign up</a>
+            </div>
           </div>
         </div>
       </div>

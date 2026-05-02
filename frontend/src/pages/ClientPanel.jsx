@@ -27,10 +27,11 @@ export default function ClientPanel() {
   };
   useEffect(() => { load(); }, []);
 
-  const inProgress = tasks.filter(t => t.status === "active" || t.status === "pending");
+  const inProgress = tasks.filter(t => t.status === "active" || t.status === "submitted");
   const inRevision = tasks.filter(t => t.status === "revision");
   const past = tasks.filter(t => t.status === "completed");
-  const draftsAvailable = tasks.filter(t => (t.drafts || []).length > 0 && t.status !== "completed");
+  const draftsAvailable = tasks.filter(t => t.status === "client_review");
+  const pendingApproval = tasks.filter(t => t.status === "pending_admin_approval");
 
   const submitRevision = async () => {
     setErr("");
