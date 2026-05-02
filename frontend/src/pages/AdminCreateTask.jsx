@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import Layout, { PageHeader } from "../components/Layout";
 import { api, formatApiError } from "../lib/api";
 import { useNavigate } from "react-router-dom";
-
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="label-xs text-zinc-400 block mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
 export default function AdminCreateTask() {
   const nav = useNavigate();
   const [clients, setClients] = useState([]);
