@@ -52,10 +52,10 @@ export default function Sidebar() {
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 bg-white rounded-md grid place-items-center">
-            <span className="font-mono text-black font-bold text-sm">TF</span>
+            <span className="font-mono text-black font-bold text-sm">MOS</span>
           </div>
           <div>
-            <div className="font-semibold text-sm">TaskFlow</div>
+            <div className="font-semibold text-sm">MotionHolic OS</div>
             <div className="label-xs text-zinc-500">Agency OS</div>
           </div>
         </div>
