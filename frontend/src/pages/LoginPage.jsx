@@ -41,8 +41,12 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-950/80 to-zinc-950/40" />
         <div className="relative z-10 p-12 flex flex-col justify-between w-full">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-md grid place-items-center">
-              <span className="font-mono text-black font-bold text-lg">MOS</span>
+            <div className="w-10 h-10 bg-white rounded-md grid place-items-center overflow-hidden">
+              <img
+                src="/motionholic-logo.png"
+                alt="Motionholic OS"
+                className="w-8 h-8 object-contain"
+              />
             </div>
             <span className="font-semibold text-xl tracking-tight">MotionHolic OS</span>
           </div>
