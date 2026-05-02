@@ -125,12 +125,29 @@ export default function AdminTasks() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 grid place-items-center p-4" onClick={() => setDetail(null)}>
           <div className="bg-zinc-950 border border-white/10 rounded-md max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
-              <div>
-                <div className="label-xs text-zinc-500 mb-1">{detail.project_type}</div>
-                <h2 className="text-2xl font-semibold">{detail.title}</h2>
-              </div>
-              <button onClick={() => setDetail(null)} className="text-zinc-500 hover:text-white" data-testid="close-task-modal">✕</button>
-            </div>
+  <div>
+    <div className="label-xs text-zinc-500 mb-1">{detail.project_type}</div>
+    <h2 className="text-2xl font-semibold">{detail.title}</h2>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <button
+      onClick={deleteTask}
+      className="text-xs px-3 py-1.5 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+      data-testid="delete-task-button"
+    >
+      Delete
+    </button>
+
+    <button
+      onClick={() => setDetail(null)}
+      className="text-zinc-500 hover:text-white"
+      data-testid="close-task-modal"
+    >
+      ✕
+    </button>
+  </div>
+</div>
 
             <div className="grid grid-cols-2 gap-3 text-sm mb-4">
               <div><span className="text-zinc-500">Priority:</span> <Badge tone={detail.priority === "urgent" ? "bad" : "default"}>{detail.priority}</Badge></div>
