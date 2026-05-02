@@ -42,9 +42,9 @@ export default function LoginPage() {
         <div className="relative z-10 p-12 flex flex-col justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-md grid place-items-center">
-              <span className="font-mono text-black font-bold text-lg">TF</span>
+              <span className="font-mono text-black font-bold text-lg">MOS</span>
             </div>
-            <span className="font-semibold text-xl tracking-tight">TaskFlow</span>
+            <span className="font-semibold text-xl tracking-tight">MotionHolic OS</span>
           </div>
           <div className="space-y-6 max-w-lg">
             <div className="label-xs text-zinc-400">Agency OS / v1.0</div>
@@ -60,7 +60,7 @@ export default function LoginPage() {
               <div><div className="font-mono text-2xl">30d</div><div className="text-zinc-500 label-xs">Perf Window</div></div>
             </div>
           </div>
-          <div className="text-xs text-zinc-500 font-mono">© TaskFlow. <a href="/showcase" className="hover:text-white transition-all">Browse editor showcase →</a></div>
+          <div className="text-xs text-zinc-500 font-mono">© MotionHolic. <a href="/showcase" className="hover:text-white transition-all">Browse editor showcase →</a></div>
         </div>
       </div>
 
