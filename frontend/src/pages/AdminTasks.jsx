@@ -58,6 +58,23 @@ export default function AdminTasks() {
     await api.patch(`/tasks/${detail.id}`, { assigned_editor_id: editorId, status: "active" });
     setDetail(null); load();
   };
+  const deleteTask = async () => {
+  if (!detail?.id) return;
+
+  const confirmDelete = window.confirm(
+    `Are you sure you want to delete "${detail.title}"? This cannot be undone.`
+  );
+
+  if (!confirmDelete) return;
+
+  try {
+    await api.delete(`/tasks/${detail.id}`);
+    setDetail(null);
+    await load();
+  } catch (error) {
+    alert("Failed to delete project. Please try again.");
+  }
+};
 
   const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); };
   const onDrop = async (e, status) => {
