@@ -1142,7 +1142,7 @@ async def calendar(admin: dict = Depends(require_role("admin"))):
 # --- Root ---
 @api.get("/")
 async def root():
-    return {"message": "TaskFlow API", "status": "ok"}
+    return {"message": "Motionholic OS API", "status": "ok"}
 
 # --- Notifications ---
 @api.get("/notifications")
