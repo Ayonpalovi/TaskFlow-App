@@ -51,10 +51,13 @@ export default function Sidebar() {
     <aside className="w-64 shrink-0 bg-zinc-950 border-r border-white/10 h-screen sticky top-0 flex flex-col" data-testid="sidebar">
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-white rounded-md grid place-items-center">
-            <span className="font-mono text-black font-bold text-sm">MOS</span>
+         <div className="w-9 h-9 bg-white rounded-md grid place-items-center overflow-hidden">
+            <img
+              src="/motionholic-logo.png"
+              alt="Motionholic OS"
+              className="w-7 h-7 object-contain"
+            />
           </div>
-          <div>
             <div className="font-semibold text-sm">MotionHolic OS</div>
             <div className="label-xs text-zinc-500">Agency OS</div>
           </div>
