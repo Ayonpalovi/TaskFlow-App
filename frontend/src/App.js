@@ -1,32 +1,80 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
+
 import { AuthProvider, useAuth } from "./context/AuthContext";
+
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import ShowcasePage from "./pages/ShowcasePage";
+
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminTasks from "./pages/AdminTasks";
 import AdminCreateTask from "./pages/AdminCreateTask";
 import AdminUsers from "./pages/AdminUsers";
 import AdminCalendar from "./pages/AdminCalendar";
+import AdminApprovals from "./pages/AdminApprovals";
+import AdminPayments from "./pages/AdminPayments";
+
 import Leaderboard from "./pages/Leaderboard";
+
 import EditorDashboard from "./pages/EditorDashboard";
 import EditorAvailable from "./pages/EditorAvailable";
 import EditorProjects from "./pages/EditorProjects";
 import EditorPerformance from "./pages/EditorPerformance";
+import EditorProfile from "./pages/EditorProfile";
+
 import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
+
 import ChatPage from "./pages/ChatPage";
-import ShowcasePage from "./pages/ShowcasePage";
-import RegisterPage from "./pages/RegisterPage";
-import EditorProfile from "./pages/EditorProfile";
-import AdminApprovals from "./pages/AdminApprovals";
-import AdminPayments from "./pages/AdminPayments";
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen grid place-items-center bg-zinc-950">
+      <div className="text-zinc-500 text-sm font-mono">loading…</div>
+    </div>
+  );
+}
 
 function RootRedirect() {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen grid place-items-center bg-zinc-950"><div className="text-zinc-500 text-sm font-mono">loading…</div></div>;
-  if (!user) return <Navigate to="/login" replace />;
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  // If user is not logged in OR user role is missing, go to login
+  if (!user || !user.role) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Only allow valid roles
+  const validRoles = ["admin", "editor", "client"];
+
+  if (!validRoles.includes(user.role)) {
+    return <Navigate to="/login" replace />;
+  }
+
   return <Navigate to={`/${user.role}`} replace />;
+}
+
+function ProtectedRoute({ children, allowedRoles }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user || !user.role) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
 }
 
 function App() {
@@ -35,36 +83,188 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            {/* Public Routes */}
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
 
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/tasks" element={<AdminTasks />} />
-            <Route path="/admin/create" element={<AdminCreateTask />} />
-            <Route path="/admin/approvals" element={<AdminApprovals />} />
-            <Route path="/admin/payments" element={<AdminPayments />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/calendar" element={<AdminCalendar />} />
-            <Route path="/admin/leaderboard" element={<Leaderboard allowed={["admin"]} />} />
-            <Route path="/admin/chat" element={<ChatPage mode="admin" />} />
+            {/* Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/tasks"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminTasks />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/create"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminCreateTask />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/approvals"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminApprovals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/payments"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminPayments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/calendar"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminCalendar />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/leaderboard"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <Leaderboard allowed={["admin"]} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/chat"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <ChatPage mode="admin" />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/editor" element={<EditorDashboard />} />
-            <Route path="/editor/profile" element={<EditorProfile />} />
-            <Route path="/editor/available" element={<EditorAvailable />} />
-            <Route path="/editor/projects" element={<EditorProjects />} />
-            <Route path="/editor/performance" element={<EditorPerformance />} />
-            <Route path="/editor/leaderboard" element={<Leaderboard allowed={["editor"]} />} />
-            <Route path="/editor/chat" element={<ChatPage mode="editor" />} />
+            {/* Editor Routes */}
+            <Route
+              path="/editor"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <EditorDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor/profile"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <EditorProfile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor/available"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <EditorAvailable />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor/projects"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <EditorProjects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor/performance"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <EditorPerformance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor/leaderboard"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <Leaderboard allowed={["editor"]} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/editor/chat"
+              element={
+                <ProtectedRoute allowedRoles={["editor"]}>
+                  <ChatPage mode="editor" />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/client" element={<ClientDashboard />} />
-            <Route path="/client/projects" element={<ClientDashboard />} />
-            <Route path="/client/panel" element={<ClientPanel />} />
-            <Route path="/client/create" element={<ClientCreateProject />} />
-            <Route path="/client/chat" element={<ChatPage mode="client" />} />
+            {/* Client Routes */}
+            <Route
+              path="/client"
+              element={
+                <ProtectedRoute allowedRoles={["client"]}>
+                  <ClientDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/client/projects"
+              element={
+                <ProtectedRoute allowedRoles={["client"]}>
+                  <ClientDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/client/panel"
+              element={
+                <ProtectedRoute allowedRoles={["client"]}>
+                  <ClientPanel />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/client/create"
+              element={
+                <ProtectedRoute allowedRoles={["client"]}>
+                  <ClientCreateProject />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/client/chat"
+              element={
+                <ProtectedRoute allowedRoles={["client"]}>
+                  <ChatPage mode="client" />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Fallback Route */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
