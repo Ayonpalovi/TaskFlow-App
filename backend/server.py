@@ -29,7 +29,7 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-app = FastAPI(title="TaskFlow API")
+app = FastAPI(title="Motionholic OS API")
 api = APIRouter(prefix="/api")
 
 # --- CORS ---
