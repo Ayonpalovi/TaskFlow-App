@@ -834,14 +834,24 @@ export default function AdminTasks() {
             )}
 
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
-              <button
-                onClick={deleteTask}
-                disabled={deleting}
-                className="px-4 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50 text-sm"
-              >
-                {deleting ? "Deleting..." : "Delete Project"}
-              </button>
-
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={startEdit}
+                  className="px-4 py-2 rounded-md bg-white text-black text-sm font-medium hover:bg-zinc-200 transition-all"
+                  data-testid="edit-task-button-bottom"
+                >
+                  Edit Project
+                </button>
+            
+                <button
+                  onClick={deleteTask}
+                  disabled={deleting}
+                  className="px-4 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50 text-sm"
+                >
+                  {deleting ? "Deleting..." : "Delete Project"}
+                </button>
+              </div>
+            
               <button
                 onClick={() => setDetail(null)}
                 className="px-4 py-2 rounded-md border border-white/10 text-sm hover:bg-white/5"
