@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -48,17 +48,20 @@ function getRoleLabel(role) {
 }
 
 function getDisplayName(user) {
+  if (!user) return "User";
+
   return (
-    user?.display_name ||
-    user?.real_name ||
-    user?.anime_name ||
-    user?.email ||
+    user.display_name ||
+    user.real_name ||
+    user.anime_name ||
+    user.email ||
     "User"
   );
 }
 
 function getInitial(user) {
-  return getDisplayName(user).charAt(0).toUpperCase();
+  const name = getDisplayName(user);
+  return name.charAt(0).toUpperCase();
 }
 
 function formatTime(value) {
@@ -81,7 +84,7 @@ function NotificationPanel({ open, onClose, onUnreadChange }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -91,7 +94,8 @@ function NotificationPanel({ open, onClose, onUnreadChange }) {
       setNotifications(items);
 
       if (typeof onUnreadChange === "function") {
-        onUnreadChange(items.filter((item) => !item.read).length);
+        const unread = items.filter((item) => !item.read).length;
+        onUnreadChange(unread);
       }
     } catch {
       setNotifications([]);
@@ -102,35 +106,35 @@ function NotificationPanel({ open, onClose, onUnreadChange }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onUnreadChange]);
 
   useEffect(() => {
     if (open) {
       loadNotifications();
     }
-  }, [open]);
+  }, [open, loadNotifications]);
 
   useEffect(() => {
     if (!open) return undefined;
 
-    const handleClickOutside = (event) => {
+    function handleMouseDown(event) {
       if (panelRef.current && !panelRef.current.contains(event.target)) {
         onClose();
       }
-    };
+    }
 
-    const handleEscape = (event) => {
+    function handleKeyDown(event) {
       if (event.key === "Escape") {
         onClose();
       }
-    };
+    }
 
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, onClose]);
 
@@ -139,12 +143,12 @@ function NotificationPanel({ open, onClose, onUnreadChange }) {
       await api.post("/notifications/read-all");
       await loadNotifications();
     } catch {
-      // ignore
+      // ignore error
     }
   };
 
   const markOneRead = async (notification) => {
-    if (!notification?.id || notification.read) return;
+    if (!notification || !notification.id || notification.read) return;
 
     try {
       await api.post(`/notifications/${notification.id}/read`);
@@ -155,124 +159,130 @@ function NotificationPanel({ open, onClose, onUnreadChange }) {
         );
 
         if (typeof onUnreadChange === "function") {
-          onUnreadChange(updated.filter((item) => !item.read).length);
+          const unread = updated.filter((item) => !item.read).length;
+          onUnreadChange(unread);
         }
 
         return updated;
       });
     } catch {
-      // ignore
+      // ignore error
     }
   };
 
   if (!open) return null;
 
   return (
-    <div
-      ref={panelRef}
-      className="fixed z-50 left-[248px] bottom-6 w-[430px] max-w-[calc(100vw-270px)] max-h-[72vh] rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 overflow-hidden"
-    >
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10">
-        <div>
-          <div className="text-sm font-semibold">Notifications</div>
-          <div className="text-[11px] text-zinc-500 font-mono uppercase tracking-[0.2em]">
-            Latest updates
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={markAllRead}
-            className="text-[11px] text-zinc-400 hover:text-white uppercase tracking-[0.15em]"
-          >
-            Mark all read
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-md border border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white"
-            aria-label="Close notifications"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-y-auto max-h-[calc(72vh-58px)]">
-        {loading && (
-          <div className="p-6 text-sm text-zinc-500 text-center">
-            Loading notifications...
-          </div>
-        )}
-
-        {!loading && notifications.length === 0 && (
-          <div className="p-8 text-center">
-            <div className="text-2xl mb-2">🔕</div>
-            <div className="text-sm text-zinc-400">No notifications yet</div>
-            <div className="text-xs text-zinc-600 mt-1">
-              You are all caught up.
+    <div className="fixed inset-0 z-50 pointer-events-none">
+      <div
+        ref={panelRef}
+        className="
+          pointer-events-auto
+          fixed right-4 top-4 bottom-4
+          w-[390px] max-w-[calc(100vw-2rem)]
+          rounded-2xl border border-white/10
+          bg-zinc-950 shadow-2xl shadow-black/70
+          overflow-hidden
+        "
+      >
+        <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-white/10">
+          <div>
+            <div className="text-sm font-semibold">Notifications</div>
+            <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.22em] mt-1">
+              Latest updates
             </div>
           </div>
-        )}
 
-        {!loading &&
-          notifications.map((notification) => {
-            const itemContent = (
-              <div
-                onClick={() => markOneRead(notification)}
-                className={`px-4 py-4 border-b border-white/5 hover:bg-white/5 transition-all cursor-pointer ${
-                  notification.read ? "opacity-60" : "opacity-100"
-                }`}
-              >
-                <div className="flex gap-3">
-                  <div
-                    className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${
-                      notification.read ? "bg-zinc-700" : "bg-blue-500"
-                    }`}
-                  />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="text-[10px] text-zinc-400 hover:text-white uppercase tracking-[0.15em]"
+            >
+              Mark all read
+            </button>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-zinc-100 font-medium leading-snug">
-                      {notification.title || "Notification"}
-                    </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-md border border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white"
+              aria-label="Close notifications"
+            >
+              ×
+            </button>
+          </div>
+        </div>
 
-                    {notification.body && (
-                      <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                        {notification.body}
+        <div className="h-[calc(100%-65px)] overflow-y-auto">
+          {loading && (
+            <div className="p-6 text-sm text-zinc-500 text-center">
+              Loading notifications...
+            </div>
+          )}
+
+          {!loading && notifications.length === 0 && (
+            <div className="p-8 text-center">
+              <div className="text-2xl mb-2">🔕</div>
+              <div className="text-sm text-zinc-400">No notifications yet</div>
+              <div className="text-xs text-zinc-600 mt-1">
+                You are all caught up.
+              </div>
+            </div>
+          )}
+
+          {!loading &&
+            notifications.map((notification) => {
+              const notificationCard = (
+                <div
+                  onClick={() => markOneRead(notification)}
+                  className={`px-4 py-4 border-b border-white/5 hover:bg-white/5 transition-all cursor-pointer ${
+                    notification.read ? "opacity-60" : "opacity-100"
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    <div
+                      className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${
+                        notification.read ? "bg-zinc-700" : "bg-blue-500"
+                      }`}
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-zinc-100 font-medium leading-snug">
+                        {notification.title || "Notification"}
                       </div>
-                    )}
 
-                    <div className="text-[11px] text-zinc-600 font-mono mt-2">
-                      {formatTime(notification.created_at)}
+                      {notification.body && (
+                        <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                          {notification.body}
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-zinc-600 font-mono mt-2">
+                        {formatTime(notification.created_at)}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-
-            if (notification.link) {
-              return (
-                <Link
-                  key={notification.id}
-                  to={notification.link}
-                  onClick={() => {
-                    markOneRead(notification);
-                    onClose();
-                  }}
-                >
-                  {itemContent}
-                </Link>
               );
-            }
 
-            return (
-              <div key={notification.id}>
-                {itemContent}
-              </div>
-            );
-          })}
+              if (notification.link) {
+                return (
+                  <Link
+                    key={notification.id}
+                    to={notification.link}
+                    onClick={() => {
+                      markOneRead(notification);
+                      onClose();
+                    }}
+                  >
+                    {notificationCard}
+                  </Link>
+                );
+              }
+
+              return <div key={notification.id}>{notificationCard}</div>;
+            })}
+        </div>
       </div>
     </div>
   );
@@ -285,31 +295,47 @@ export default function Layout({ children, allowed = [] }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const nav = getNavByRole(user?.role);
+  const nav = getNavByRole(user ? user.role : null);
 
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     if (!user) return;
 
     try {
       const res = await api.get("/notifications");
       const items = Array.isArray(res.data) ? res.data : [];
-      setUnreadCount(items.filter((item) => !item.read).length);
+      const unread = items.filter((item) => !item.read).length;
+
+      setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadUnreadCountUnreadCount(unread);
+    } catch {
+      setUnreadCount(0);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadUnreadCount();
 
-    const timer = setInterval(loadUnreadCount, 30000);
+    const timer = setInterval(() => {
+      loadUnreadCount();
+    }, 30000);
 
     return () => clearInterval(timer);
-  }, [user?.id]);
+  }, [loadUnreadCount]);
 
   useEffect(() => {
     setNotificationsOpen(false);
   }, [location.pathname]);
+
+  const closeNotifications = useCallback(() => {
+    setNotificationsOpen(false);
+    loadUnreadCount();
+  }, [loadUnreadCount]);
 
   if (loading) {
     return (
@@ -333,7 +359,7 @@ export default function Layout({ children, allowed = [] }) {
         await logout();
       }
     } catch {
-      // ignore
+      // ignore error
     }
   };
 
@@ -442,10 +468,7 @@ export default function Layout({ children, allowed = [] }) {
 
       <NotificationPanel
         open={notificationsOpen}
-        onClose={() => {
-          setNotificationsOpen(false);
-          loadUnreadCount();
-        }}
+        onClose={closeNotifications}
         onUnreadChange={setUnreadCount}
       />
     </div>
@@ -456,9 +479,7 @@ export function PageHeader({ label, title, subtitle, children }) {
   return (
     <div className="mb-8 flex items-start justify-between gap-4">
       <div>
-        {label && (
-          <div className="label-xs text-zinc-500 mb-2">{label}</div>
-        )}
+        {label && <div className="label-xs text-zinc-500 mb-2">{label}</div>}
 
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
 
