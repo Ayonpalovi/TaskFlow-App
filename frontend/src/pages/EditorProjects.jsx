@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
-import { api } from "../lib/api";
+import { api, formatApiError } from "../lib/api";
+
+const inputClass =
+  "w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20";
+
+const textareaClass =
+  "w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20";
 
 function InfoRow({ label, value }) {
   return (
@@ -31,16 +37,80 @@ function LinkRow({ label, url }) {
   );
 }
 
+function ProjectCard({ task, onOpen }) {
+  return (
+    <div
+      onClick={() => onOpen(task)}
+      className="cursor-pointer border border-white/10 rounded-md p-4 bg-zinc-900/30 hover:bg-zinc-900/60 transition-all card-hover"
+      data-testid={`editor-project-${task.id}`}
+    >
+      <div className="flex justify-between items-start gap-3 mb-2">
+        <div className="font-medium truncate">{task.title}</div>
+
+        <Badge
+          tone={
+            task.priority === "urgent"
+              ? "bad"
+              : task.priority === "high"
+                ? "warn"
+                : "default"
+          }
+        >
+          {task.priority}
+        </Badge>
+      </div>
+
+      <div className="flex gap-1.5 flex-wrap mb-3">
+        <Badge>{task.project_type}</Badge>
+
+        <Badge
+          tone={
+            task.status === "revision"
+              ? "bad"
+              : task.status === "completed"
+                ? "good"
+                : task.status === "submitted" || task.status === "client_review"
+                  ? "warn"
+                  : "default"
+          }
+        >
+          {task.status}
+        </Badge>
+
+        {(task.revisions || []).length > 0 && (
+          <Badge tone="bad">↻ {task.revisions.length}</Badge>
+        )}
+      </div>
+
+      <div className="text-xs text-zinc-500 font-mono">
+        Due {task.deadline?.slice(0, 10)}
+      </div>
+
+      <div className="text-xs text-zinc-400 mt-2">
+        Drafts: {(task.drafts || []).length}
+      </div>
+    </div>
+  );
+}
+
 export default function EditorProjects() {
   const [tasks, setTasks] = useState([]);
   const [detail, setDetail] = useState(null);
+
   const [draftUrl, setDraftUrl] = useState("");
   const [draftNote, setDraftNote] = useState("");
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [err, setErr] = useState("");
 
   const load = async () => {
-    const { data } = await api.get("/tasks");
-    setTasks(data);
+    try {
+      setErr("");
+      const { data } = await api.get("/tasks");
+      setTasks(data);
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail) || "Failed to load projects.");
+    }
   };
 
   useEffect(() => {
@@ -48,277 +118,378 @@ export default function EditorProjects() {
   }, []);
 
   const openDetail = async (task) => {
-    setLoadingDetail(true);
-
     try {
+      setErr("");
+
       const { data } = await api.get(`/tasks/${task.id}`);
+
       setDetail(data);
-    } catch (error) {
-      alert("Failed to load project details.");
-    } finally {
-      setLoadingDetail(false);
+      setDraftUrl("");
+      setDraftNote("");
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail) || "Failed to open project.");
     }
+  };
+
+  const goBack = () => {
+    setDetail(null);
+    setDraftUrl("");
+    setDraftNote("");
   };
 
   const submitDraft = async () => {
-    if (!draftUrl.trim()) {
-      alert("Please add a draft URL first.");
-      return;
+    if (!detail?.id || !draftUrl.trim()) return;
+
+    try {
+      setSubmitting(true);
+      setErr("");
+
+      await api.post(`/tasks/${detail.id}/submit`, {
+        video_url: draftUrl.trim(),
+        note: draftNote.trim(),
+      });
+
+      const { data } = await api.get(`/tasks/${detail.id}`);
+
+      setDetail(data);
+      setDraftUrl("");
+      setDraftNote("");
+
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail) || "Failed to submit draft.");
+    } finally {
+      setSubmitting(false);
     }
-
-    await api.post(`/tasks/${detail.id}/submit`, {
-      video_url: draftUrl,
-      note: draftNote,
-    });
-
-    setDraftUrl("");
-    setDraftNote("");
-
-    const { data } = await api.get(`/tasks/${detail.id}`);
-    setDetail(data);
-
-    load();
   };
 
-  const columns = [
-    { key: "active", label: "Active" },
-    { key: "submitted", label: "Awaiting Admin" },
-    { key: "client_review", label: "Client Review" },
-    { key: "revision", label: "Revision" },
-    { key: "completed", label: "Completed" },
-  ];
+  const activeTasks = tasks.filter((task) => task.status === "active");
+  const revisionTasks = tasks.filter((task) => task.status === "revision");
+  const reviewTasks = tasks.filter(
+    (task) => task.status === "submitted" || task.status === "client_review"
+  );
+  const completedTasks = tasks.filter((task) => task.status === "completed");
+
+  if (detail) {
+    return (
+      <Layout allowed={["editor"]}>
+        <div className="max-w-7xl mx-auto pb-20">
+          <div className="flex items-start justify-between gap-4 mb-8 border-b border-white/10 pb-6">
+            <div>
+              <button
+                onClick={goBack}
+                className="text-sm text-zinc-400 hover:text-white mb-5"
+              >
+                ← Back to My Projects
+              </button>
+
+              <div className="label-xs text-zinc-500 mb-2">
+                {detail.project_type || "Project"}
+              </div>
+
+              <h1 className="text-4xl font-semibold tracking-tight">
+                {detail.title}
+              </h1>
+
+              <p className="text-zinc-500 mt-2">
+                Status: <span className="text-zinc-300">{detail.status}</span>
+              </p>
+            </div>
+
+            <button
+              onClick={goBack}
+              className="px-4 py-2 rounded-md border border-white/10 text-sm hover:bg-white/5"
+            >
+              Close
+            </button>
+          </div>
+
+          {err && (
+            <div className="mb-5 text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">
+              {err}
+            </div>
+          )}
+
+          <div className="grid xl:grid-cols-3 gap-6">
+            <section className="xl:col-span-2 space-y-6">
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Project Details</h2>
+
+                <div className="grid md:grid-cols-2 gap-4 text-sm">
+                  <InfoRow label="Project Type" value={detail.project_type} />
+                  <InfoRow label="Priority" value={detail.priority} />
+                  <InfoRow label="Status" value={detail.status} />
+                  <InfoRow label="Deadline" value={detail.deadline?.slice(0, 10)} />
+                  <InfoRow label="Videos" value={detail.num_videos} />
+                  <InfoRow label="Duration" value={detail.duration} />
+                  <InfoRow label="Resolution" value={detail.resolution} />
+                  <InfoRow label="Aspect Ratio" value={detail.aspect_ratio} />
+                </div>
+              </div>
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Creative Brief</h2>
+
+                <div className="space-y-3 text-sm">
+                  <InfoRow label="Goal" value={detail.brief_goal} />
+                  <InfoRow label="Audience" value={detail.brief_audience} />
+                  <InfoRow label="Style" value={detail.brief_style} />
+                  <InfoRow label="Hook" value={detail.brief_hook} />
+                  <InfoRow label="Body" value={detail.brief_body} />
+                  <InfoRow label="CTA" value={detail.brief_cta} />
+                  <InfoRow label="References" value={detail.brief_references} />
+                  <InfoRow label="Notes" value={detail.brief_notes} />
+
+                  <div>
+                    <span className="text-zinc-500">Skill Tags: </span>
+                    {detail.skill_tags?.length ? (
+                      <span className="inline-flex flex-wrap gap-1">
+                        {detail.skill_tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Assets</h2>
+
+                <div className="space-y-3 text-sm">
+                  <LinkRow label="Footages URL" url={detail.footages_url} />
+                  <LinkRow label="Script URL" url={detail.script_url} />
+                </div>
+              </div>
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Drafts Delivered</h2>
+
+                {(detail.drafts || []).length > 0 ? (
+                  <div className="space-y-3">
+                    {(detail.drafts || []).map((draft) => (
+                      <div
+                        key={draft.id}
+                        className="border border-white/10 rounded-md p-4 text-sm"
+                      >
+                        <a
+                          href={draft.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-400 hover:underline break-all"
+                        >
+                          {draft.url}
+                        </a>
+
+                        {draft.note && (
+                          <div className="text-zinc-400 mt-2">{draft.note}</div>
+                        )}
+
+                        <div className="text-xs text-zinc-600 mt-2 font-mono">
+                          Uploaded {draft.uploaded_at?.slice(0, 10)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-zinc-500">No drafts yet.</div>
+                )}
+              </div>
+
+              {(detail.revisions || []).length > 0 && (
+                <div className="border border-red-500/20 rounded-xl bg-red-500/5 p-6">
+                  <h2 className="text-lg font-semibold mb-5 text-red-400">
+                    Revision Requests
+                  </h2>
+
+                  {(detail.revisions || []).map((revision) => (
+                    <div
+                      key={revision.id}
+                      className="border border-red-500/20 rounded-md p-4 mb-3 text-sm text-red-200"
+                    >
+                      {revision.note}
+
+                      <div className="text-xs text-red-300/60 mt-2 font-mono">
+                        {revision.created_at?.slice(0, 10)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className="space-y-6">
+              {detail.status !== "completed" && (
+                <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                  <h2 className="text-lg font-semibold mb-5">Submit Draft</h2>
+
+                  <div className="space-y-3">
+                    <input
+                      data-testid="draft-url-input"
+                      className={inputClass}
+                      value={draftUrl}
+                      onChange={(e) => setDraftUrl(e.target.value)}
+                      placeholder="Draft URL"
+                    />
+
+                    <textarea
+                      data-testid="draft-note-input"
+                      rows={4}
+                      className={textareaClass}
+                      value={draftNote}
+                      onChange={(e) => setDraftNote(e.target.value)}
+                      placeholder="Notes for admin/client..."
+                    />
+
+                    <button
+                      data-testid="submit-draft-button"
+                      onClick={submitDraft}
+                      disabled={submitting || !draftUrl.trim()}
+                      className="w-full bg-white text-black rounded-md py-3 text-sm font-medium hover:bg-zinc-200 disabled:opacity-50"
+                    >
+                      {submitting ? "Submitting..." : "Submit Draft"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Quick Status</h2>
+
+                <div className="space-y-3 text-sm">
+                  <InfoRow label="Current Status" value={detail.status} />
+                  <InfoRow label="Priority" value={detail.priority} />
+                  <InfoRow label="Deadline" value={detail.deadline?.slice(0, 10)} />
+                  <InfoRow label="Draft Count" value={(detail.drafts || []).length} />
+                  <InfoRow
+                    label="Revision Count"
+                    value={(detail.revisions || []).length}
+                  />
+                </div>
+              </div>
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-3">Editor Reminder</h2>
+
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Check the assets, script URL, creative brief, references, and
+                  notes before editing. Submit the final draft link here when the
+                  video is ready.
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout allowed={["editor"]}>
       <PageHeader
         label="Editor / Projects"
         title="My Projects"
-        subtitle="Active, revisions, pending and delivered work."
+        subtitle="Open a project to view the full brief, assets, revisions, and submit drafts."
       />
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {columns.map((col) => {
-          const items = tasks.filter((t) => t.status === col.key);
-
-          return (
-            <div
-              key={col.key}
-              className="bg-zinc-900/50 border border-white/10 rounded-md p-3"
-              data-testid={`editor-kanban-${col.key}`}
-            >
-              <div className="flex justify-between mb-3 px-1">
-                <div className="label-xs text-zinc-400">{col.label}</div>
-                <span className="font-mono text-xs text-zinc-500">
-                  {items.length}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {items.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => openDetail(t)}
-                    className="text-left w-full border border-white/10 bg-zinc-900/50 rounded-md p-3 card-hover"
-                    data-testid={`editor-task-${t.id}`}
-                  >
-                    <div className="text-sm font-medium truncate">
-                      {t.title}
-                    </div>
-
-                    <div className="text-xs text-zinc-500 mt-1">
-                      {t.project_type}
-                    </div>
-
-                    <div className="text-xs text-zinc-500 font-mono mt-1">
-                      Due {t.deadline?.slice(0, 10)}
-                    </div>
-
-                    {col.key === "revision" && (
-                      <Badge tone="bad">Revise</Badge>
-                    )}
-                  </button>
-                ))}
-
-                {items.length === 0 && (
-                  <div className="text-xs text-zinc-600 p-3">Empty</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {loadingDetail && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 grid place-items-center p-4">
-          <div className="text-zinc-400 text-sm">Loading project details…</div>
+      {err && (
+        <div className="mb-5 text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">
+          {err}
         </div>
       )}
 
-      {detail && (
-        <div
-          className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto"
-          onClick={() => setDetail(null)}
-        >
-         <div
-            className="min-h-screen w-full max-w-7xl mx-auto px-6 md:px-10 py-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur border-b border-white/10 -mx-6 md:-mx-10 px-6 md:px-10 py-5 mb-6 flex justify-between items-start gap-4">
-              <div>
-                <div className="label-xs text-zinc-500 mb-1">
-                  {detail.project_type}
-                </div>
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-xs text-zinc-400">Active</div>
+            <span className="font-mono text-xs text-zinc-500">
+              {activeTasks.length}
+            </span>
+          </div>
 
-                <h2 className="text-2xl font-semibold">{detail.title}</h2>
+          <div className="space-y-3 min-h-[120px]">
+            {activeTasks.map((task) => (
+              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
+            ))}
 
-                <div className="text-sm text-zinc-400 mt-1">
-                  Due {detail.deadline?.slice(0, 10)}
-                </div>
+            {activeTasks.length === 0 && (
+              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
+                Empty
               </div>
-
-              <button
-                onClick={() => setDetail(null)}
-                className="text-zinc-500 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Project Details</h3>
-
-              <div className="grid md:grid-cols-2 gap-3 text-sm bg-zinc-900/50 border border-white/10 rounded-md p-4">
-                <InfoRow label="Project Type" value={detail.project_type} />
-                <InfoRow label="Priority" value={detail.priority} />
-                <InfoRow label="Deadline" value={detail.deadline?.slice(0, 10)} />
-                <InfoRow label="Status" value={detail.status} />
-                <InfoRow label="Videos" value={detail.num_videos} />
-                <InfoRow label="Duration" value={detail.duration} />
-                <InfoRow label="Resolution" value={detail.resolution} />
-                <InfoRow label="Aspect Ratio" value={detail.aspect_ratio} />
-              </div>
-            </section>
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Assets</h3>
-
-              <div className="space-y-2 text-sm bg-zinc-900/50 border border-white/10 rounded-md p-4">
-                <LinkRow label="Footages URL" url={detail.footages_url} />
-                <LinkRow label="Script URL" url={detail.script_url} />
-              </div>
-            </section>
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Creative Brief</h3>
-
-              <div className="space-y-2 text-sm bg-zinc-900/50 border border-white/10 rounded-md p-4">
-                <InfoRow label="Goal" value={detail.brief_goal} />
-                <InfoRow label="Target Audience" value={detail.brief_audience} />
-                <InfoRow label="Style" value={detail.brief_style} />
-                <InfoRow label="Hook" value={detail.brief_hook} />
-                <InfoRow label="Body" value={detail.brief_body} />
-                <InfoRow label="CTA" value={detail.brief_cta} />
-                <InfoRow label="References" value={detail.brief_references} />
-                <InfoRow label="Notes" value={detail.brief_notes} />
-
-                <div>
-                  <span className="text-zinc-500">Skill Tags: </span>
-                  {detail.skill_tags?.length ? (
-                    <span className="inline-flex flex-wrap gap-1">
-                      {detail.skill_tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <span>—</span>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            {(detail.revisions || []).length > 0 && (
-              <section className="mb-4">
-                <h3 className="label-xs text-zinc-400 mb-2">
-                  Revision Requests
-                </h3>
-
-                {(detail.revisions || []).map((r) => (
-                  <div
-                    key={r.id}
-                    className="text-sm bg-red-500/10 border border-red-500/20 rounded-md p-3 mb-2"
-                  >
-                    {r.note}
-                  </div>
-                ))}
-              </section>
-            )}
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Drafts Delivered</h3>
-
-              <div className="space-y-2">
-                {(detail.drafts || []).map((d) => (
-                  <div
-                    key={d.id}
-                    className="border border-white/10 rounded-md p-3 text-sm"
-                  >
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-400 hover:underline font-mono text-xs break-all"
-                    >
-                      {d.url}
-                    </a>
-
-                    <div className="text-zinc-400 mt-1">{d.note}</div>
-                  </div>
-                ))}
-
-                {(!detail.drafts || detail.drafts.length === 0) && (
-                  <div className="text-xs text-zinc-500">No drafts yet.</div>
-                )}
-              </div>
-            </section>
-
-            {detail.status !== "completed" && (
-              <section className="border border-white/10 rounded-md p-4 bg-zinc-900/30">
-                <div className="label-xs text-zinc-400 mb-2">Submit Draft</div>
-
-                <input
-                  data-testid="draft-url-input"
-                  placeholder="Draft URL"
-                  value={draftUrl}
-                  onChange={(e) => setDraftUrl(e.target.value)}
-                  className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm mb-2"
-                />
-
-                <textarea
-                  data-testid="draft-note-input"
-                  placeholder="Notes (optional)"
-                  value={draftNote}
-                  onChange={(e) => setDraftNote(e.target.value)}
-                  rows={2}
-                  className="w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm mb-2"
-                />
-
-                <button
-                  data-testid="submit-draft-button"
-                  onClick={submitDraft}
-                  className="w-full bg-white text-black rounded-md py-2 text-sm font-medium hover:bg-zinc-200"
-                >
-                  Submit Draft
-                </button>
-              </section>
             )}
           </div>
-        </div>
-      )}
+        </section>
+
+        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-xs text-zinc-400">Revision</div>
+            <span className="font-mono text-xs text-zinc-500">
+              {revisionTasks.length}
+            </span>
+          </div>
+
+          <div className="space-y-3 min-h-[120px]">
+            {revisionTasks.map((task) => (
+              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
+            ))}
+
+            {revisionTasks.length === 0 && (
+              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
+                Empty
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-xs text-zinc-400">In Review</div>
+            <span className="font-mono text-xs text-zinc-500">
+              {reviewTasks.length}
+            </span>
+          </div>
+
+          <div className="space-y-3 min-h-[120px]">
+            {reviewTasks.map((task) => (
+              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
+            ))}
+
+            {reviewTasks.length === 0 && (
+              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
+                Empty
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-xs text-zinc-400">Completed</div>
+            <span className="font-mono text-xs text-zinc-500">
+              {completedTasks.length}
+            </span>
+          </div>
+
+          <div className="space-y-3 min-h-[120px]">
+            {completedTasks.map((task) => (
+              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
+            ))}
+
+            {completedTasks.length === 0 && (
+              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
+                Empty
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </Layout>
   );
 }
