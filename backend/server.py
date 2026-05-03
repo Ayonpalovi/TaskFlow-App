@@ -530,9 +530,10 @@ async def list_tasks(
     user: dict = Depends(get_current_user)
 ):
     q = {}
+
     if status:
         q["status"] = status
-    # Role-based filter
+
     if user["role"] == "editor":
         if assigned_to_me:
             q["assigned_editor_id"] = user["id"]
@@ -540,46 +541,54 @@ async def list_tasks(
             q["status"] = "available"
         else:
             q["assigned_editor_id"] = user["id"]
+
     elif user["role"] == "client":
         q["client_id"] = user["id"]
-        # Hide pending_admin_approval from client UI? actually they should see their own pending too
-        # Keep all - client sees all their tasks across statuses
 
     items = await db.tasks.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
 
-    # For editor viewing "available", hide sensitive info
-    if user["role"] == "editor" and status == "available":
+    # Editors can see everything except money fields
+    if user["role"] == "editor":
         cleaned = []
         for t in items:
-            cleaned.append({
-                "id": t["id"],
-                "project_type": t["project_type"],
-                "priority": t["priority"],
-                "deadline": t["deadline"],
-                "num_videos": t["num_videos"],
-                "duration": t["duration"],
-                "skill_tags": t.get("skill_tags", []),
-                "status": t["status"],
-                "created_at": t["created_at"],
-            })
-        # Also attach my pending request expiry if any
-        my_reqs = await db.requests.find({"editor_id": user["id"]}, {"_id": 0}).to_list(200)
-        req_map = {r["task_id"]: r for r in my_reqs}
-        for t in cleaned:
-            if t["id"] in req_map:
-                t["my_request"] = req_map[t["id"]]
+            t.pop("revenue", None)
+            t.pop("cost", None)
+            cleaned.append(t)
+
+        if status == "available":
+            my_reqs = await db.requests.find(
+                {"editor_id": user["id"]},
+                {"_id": 0}
+            ).to_list(200)
+
+            req_map = {r["task_id"]: r for r in my_reqs}
+
+            for t in cleaned:
+                if t["id"] in req_map:
+                    t["my_request"] = req_map[t["id"]]
+
         return cleaned
+
     return items
 
 @api.get("/tasks/{task_id}")
 async def get_task(task_id: str, user: dict = Depends(get_current_user)):
     t = await db.tasks.find_one({"id": task_id}, {"_id": 0})
+
     if not t:
         raise HTTPException(404, "Not found")
+
     if user["role"] == "client" and t.get("client_id") != user["id"]:
         raise HTTPException(403, "Forbidden")
-    if user["role"] == "editor" and t.get("assigned_editor_id") != user["id"] and t.get("status") != "available":
-        raise HTTPException(403, "Forbidden")
+
+    if user["role"] == "editor":
+        if t.get("assigned_editor_id") != user["id"] and t.get("status") != "available":
+            raise HTTPException(403, "Forbidden")
+
+        t.pop("revenue", None)
+        t.pop("cost", None)
+        return t
+
     return t
 
 @api.patch("/tasks/{task_id}")
