@@ -58,12 +58,12 @@ function getDisplayName(user) {
 }
 
 function getInitial(user) {
-  const name = getDisplayName(user);
-  return name?.charAt(0)?.toUpperCase() || "U";
+  return getDisplayName(user).charAt(0).toUpperCase();
 }
 
 function formatTime(value) {
   if (!value) return "";
+
   try {
     return new Date(value).toLocaleString([], {
       month: "short",
@@ -76,32 +76,42 @@ function formatTime(value) {
   }
 }
 
-function NotificationPanel({ open, onClose }) {
-  const { user } = useAuth();
+function NotificationPanel({ open, onClose, onUnreadChange }) {
   const panelRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const loadNotifications = async () => {
-    if (!user) return;
-
     try {
       setLoading(true);
-      const { data } = await api.get("/notifications");
-      setNotifications(Array.isArray(data) ? data : []);
-    } catch (error) {
+
+      const res = await api.get("/notifications");
+      const items = Array.isArray(res.data) ? res.data : [];
+
+      setNotifications(items);
+
+      if (typeof onUnreadChange === "function") {
+        onUnreadChange(items.filter((item) => !item.read).length);
+      }
+    } catch {
       setNotifications([]);
+
+      if (typeof onUnreadChange === "function") {
+        onUnreadChange(0);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (open) loadNotifications();
+    if (open) {
+      loadNotifications();
+    }
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
 
     const handleClickOutside = (event) => {
       if (panelRef.current && !panelRef.current.contains(event.target)) {
@@ -110,7 +120,9 @@ function NotificationPanel({ open, onClose }) {
     };
 
     const handleEscape = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -127,7 +139,7 @@ function NotificationPanel({ open, onClose }) {
       await api.post("/notifications/read-all");
       await loadNotifications();
     } catch {
-      // silent fail
+      // ignore
     }
   };
 
@@ -136,13 +148,20 @@ function NotificationPanel({ open, onClose }) {
 
     try {
       await api.post(`/notifications/${notification.id}/read`);
-      setNotifications((prev) =>
-        prev.map((item) =>
+
+      setNotifications((prev) => {
+        const updated = prev.map((item) =>
           item.id === notification.id ? { ...item, read: true } : item
-        )
-      );
+        );
+
+        if (typeof onUnreadChange === "function") {
+          onUnreadChange(updated.filter((item) => !item.read).length);
+        }
+
+        return updated;
+      });
     } catch {
-      // silent fail
+      // ignore
     }
   };
 
@@ -151,16 +170,7 @@ function NotificationPanel({ open, onClose }) {
   return (
     <div
       ref={panelRef}
-      className="
-        fixed z-[9999]
-        left-[244px] bottom-6
-        w-[430px] max-w-[calc(100vw-270px)]
-        max-h-[72vh]
-        rounded-2xl border border-white/10
-        bg-zinc-950/98 backdrop-blur-xl
-        shadow-2xl shadow-black/60
-        overflow-hidden
-      "
+      className="fixed z-50 left-[248px] bottom-6 w-[430px] max-w-[calc(100vw-270px)] max-h-[72vh] rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 overflow-hidden"
     >
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10">
         <div>
@@ -172,6 +182,7 @@ function NotificationPanel({ open, onClose }) {
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={markAllRead}
             className="text-[11px] text-zinc-400 hover:text-white uppercase tracking-[0.15em]"
           >
@@ -179,8 +190,10 @@ function NotificationPanel({ open, onClose }) {
           </button>
 
           <button
+            type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-md border border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white"
+            aria-label="Close notifications"
           >
             ×
           </button>
@@ -206,21 +219,18 @@ function NotificationPanel({ open, onClose }) {
 
         {!loading &&
           notifications.map((notification) => {
-            const content = (
+            const itemContent = (
               <div
                 onClick={() => markOneRead(notification)}
-                className={`
-                  group px-4 py-4 border-b border-white/5
-                  hover:bg-white/[0.03] transition-all cursor-pointer
-                  ${notification.read ? "opacity-60" : "opacity-100"}
-                `}
+                className={`px-4 py-4 border-b border-white/5 hover:bg-white/5 transition-all cursor-pointer ${
+                  notification.read ? "opacity-60" : "opacity-100"
+                }`}
               >
                 <div className="flex gap-3">
                   <div
-                    className={`
-                      mt-1 w-2.5 h-2.5 rounded-full shrink-0
-                      ${notification.read ? "bg-zinc-700" : "bg-blue-500"}
-                    `}
+                    className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${
+                      notification.read ? "bg-zinc-700" : "bg-blue-500"
+                    }`}
                   />
 
                   <div className="min-w-0 flex-1">
@@ -252,12 +262,16 @@ function NotificationPanel({ open, onClose }) {
                     onClose();
                   }}
                 >
-                  {content}
+                  {itemContent}
                 </Link>
               );
             }
 
-            return <div key={notification.id}>{content}</div>;
+            return (
+              <div key={notification.id}>
+                {itemContent}
+              </div>
+            );
           })}
       </div>
     </div>
@@ -267,6 +281,7 @@ function NotificationPanel({ open, onClose }) {
 export default function Layout({ children, allowed = [] }) {
   const { user, loading, logout } = useAuth();
   const location = useLocation();
+
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -276,12 +291,9 @@ export default function Layout({ children, allowed = [] }) {
     if (!user) return;
 
     try {
-      const { data } = await api.get("/notifications");
-      const unread = Array.isArray(data)
-        ? data.filter((item) => !item.read).length
-        : 0;
-
-      setUnreadCount(unread);
+      const res = await api.get("/notifications");
+      const items = Array.isArray(res.data) ? res.data : [];
+      setUnreadCount(items.filter((item) => !item.read).length);
     } catch {
       setUnreadCount(0);
     }
@@ -291,6 +303,7 @@ export default function Layout({ children, allowed = [] }) {
     loadUnreadCount();
 
     const timer = setInterval(loadUnreadCount, 30000);
+
     return () => clearInterval(timer);
   }, [user?.id]);
 
@@ -320,7 +333,7 @@ export default function Layout({ children, allowed = [] }) {
         await logout();
       }
     } catch {
-      // silent fail
+      // ignore
     }
   };
 
@@ -361,14 +374,11 @@ export default function Layout({ children, allowed = [] }) {
               to={item.path}
               end={item.path === `/${user.role}`}
               className={({ isActive }) =>
-                `
-                  flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all
-                  ${
-                    isActive
-                      ? "bg-white/8 text-white border-l-2 border-white"
-                      : "text-zinc-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent"
-                  }
-                `
+                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all border-l-2 ${
+                  isActive
+                    ? "bg-white/10 text-white border-white"
+                    : "text-zinc-400 hover:text-white hover:bg-white/5 border-transparent"
+                }`
               }
             >
               <span className="w-4 text-center text-zinc-400">{item.icon}</span>
@@ -400,11 +410,12 @@ export default function Layout({ children, allowed = [] }) {
             </div>
 
             <button
+              type="button"
               onClick={() => setNotificationsOpen((prev) => !prev)}
               className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white"
               title="Notifications"
             >
-              🔔
+              <span>🔔</span>
 
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">
@@ -415,6 +426,7 @@ export default function Layout({ children, allowed = [] }) {
           </div>
 
           <button
+            type="button"
             onClick={handleLogout}
             className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-all"
           >
@@ -434,6 +446,7 @@ export default function Layout({ children, allowed = [] }) {
           setNotificationsOpen(false);
           loadUnreadCount();
         }}
+        onUnreadChange={setUnreadCount}
       />
     </div>
   );
@@ -470,7 +483,9 @@ export function Badge({ children, tone = "default" }) {
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-md border text-xs ${tones[tone] || tones.default}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-md border text-xs ${
+        tones[tone] || tones.default
+      }`}
     >
       {children}
     </span>
@@ -490,11 +505,17 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
     <div className="border border-white/10 rounded-md bg-zinc-900/30 p-5">
       <div className="label-xs text-zinc-500 mb-4">{label}</div>
 
-      <div className={`font-mono text-3xl font-semibold ${valueTone[tone] || valueTone.default}`}>
+      <div
+        className={`font-mono text-3xl font-semibold ${
+          valueTone[tone] || valueTone.default
+        }`}
+      >
         {value}
       </div>
 
-      {subtitle && <div className="text-xs text-zinc-500 mt-2">{subtitle}</div>}
+      {subtitle && (
+        <div className="text-xs text-zinc-500 mt-2">{subtitle}</div>
+      )}
     </div>
   );
 }
