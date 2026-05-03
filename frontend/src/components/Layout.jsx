@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -33,38 +33,31 @@ const clientNav = [
   { label: "Message Admin", path: "/client/chat", icon: "♧" },
 ];
 
-function getNavByRole(role) {
+function getNav(role) {
   if (role === "admin") return adminNav;
   if (role === "editor") return editorNav;
   if (role === "client") return clientNav;
   return [];
 }
 
-function getRoleLabel(role) {
+function displayName(user) {
+  return (
+    user?.display_name ||
+    user?.real_name ||
+    user?.anime_name ||
+    user?.email ||
+    "User"
+  );
+}
+
+function roleLabel(role) {
   if (role === "admin") return "Admin";
   if (role === "editor") return "Editor";
   if (role === "client") return "Client";
   return "User";
 }
 
-function getDisplayName(user) {
-  if (!user) return "User";
-
-  return (
-    user.display_name ||
-    user.real_name ||
-    user.anime_name ||
-    user.email ||
-    "User"
-  );
-}
-
-function getInitial(user) {
-  const name = getDisplayName(user);
-  return name.charAt(0).toUpperCase();
-}
-
-function formatTime(value) {
+function formatDate(value) {
   if (!value) return "";
 
   try {
@@ -79,210 +72,149 @@ function formatTime(value) {
   }
 }
 
-function NotificationPanel({ open, onClose, onUnreadChange }) {
-  const panelRef = useRef(null);
-  const [notifications, setNotifications] = useState([]);
+function NotificationsBox({ open, onClose, onUnreadChange }) {
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = async () => {
     try {
       setLoading(true);
 
       const res = await api.get("/notifications");
-      const items = Array.isArray(res.data) ? res.data : [];
+      const data = Array.isArray(res.data) ? res.data : [];
 
-      setNotifications(items);
+      setItems(data);
 
-      if (typeof onUnreadChange === "function") {
-        const unread = items.filter((item) => !item.read).length;
-        onUnreadChange(unread);
+      if (onUnreadChange) {
+        onUnreadChange(data.filter((n) => !n.read).length);
       }
     } catch {
-      setNotifications([]);
+      setItems([]);
 
-      if (typeof onUnreadChange === "function") {
+      if (onUnreadChange) {
         onUnreadChange(0);
       }
     } finally {
       setLoading(false);
     }
-  }, [onUnreadChange]);
+  };
 
   useEffect(() => {
     if (open) {
       loadNotifications();
     }
-  }, [open, loadNotifications]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    function handleMouseDown(event) {
-      if (panelRef.current && !panelRef.current.contains(event.target)) {
-        onClose();
-      }
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    document.addEventListener("mousedown", handleMouseDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handleMouseDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open, onClose]);
+  }, [open]);
 
   const markAllRead = async () => {
     try {
       await api.post("/notifications/read-all");
       await loadNotifications();
     } catch {
-      // ignore error
+      // ignore
     }
   };
 
-  const markOneRead = async (notification) => {
-    if (!notification || !notification.id || notification.read) return;
+  const markRead = async (notification) => {
+    if (!notification?.id || notification.read) return;
 
     try {
       await api.post(`/notifications/${notification.id}/read`);
 
-      setNotifications((prev) => {
-        const updated = prev.map((item) =>
-          item.id === notification.id ? { ...item, read: true } : item
-        );
+      const updated = items.map((item) =>
+        item.id === notification.id ? { ...item, read: true } : item
+      );
 
-        if (typeof onUnreadChange === "function") {
-          const unread = updated.filter((item) => !item.read).length;
-          onUnreadChange(unread);
-        }
+      setItems(updated);
 
-        return updated;
-      });
+      if (onUnreadChange) {
+        onUnreadChange(updated.filter((n) => !n.read).length);
+      }
     } catch {
-      // ignore error
+      // ignore
     }
   };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
-      <div
-        ref={panelRef}
-        className="
-          pointer-events-auto
-          fixed right-4 top-4 bottom-4
-          w-[390px] max-w-[calc(100vw-2rem)]
-          rounded-2xl border border-white/10
-          bg-zinc-950 shadow-2xl shadow-black/70
-          overflow-hidden
-        "
-      >
-        <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-white/10">
-          <div>
-            <div className="text-sm font-semibold">Notifications</div>
-            <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.22em] mt-1">
-              Latest updates
-            </div>
+    <div className="absolute left-0 bottom-[104px] w-[228px] bg-zinc-950 border-t border-white/10 border-b border-white/10 shadow-2xl z-40">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="text-xs font-medium">Notifications</div>
+
+        <button
+          type="button"
+          onClick={markAllRead}
+          className="text-[10px] text-zinc-500 hover:text-white uppercase tracking-wider"
+        >
+          Mark all read
+        </button>
+      </div>
+
+      <div className="max-h-[320px] overflow-y-auto">
+        {loading && (
+          <div className="p-4 text-xs text-zinc-500">
+            Loading...
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={markAllRead}
-              className="text-[10px] text-zinc-400 hover:text-white uppercase tracking-[0.15em]"
-            >
-              Mark all read
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-md border border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white"
-              aria-label="Close notifications"
-            >
-              ×
-            </button>
+        {!loading && items.length === 0 && (
+          <div className="p-4 text-xs text-zinc-500">
+            No notifications yet.
           </div>
-        </div>
+        )}
 
-        <div className="h-[calc(100%-65px)] overflow-y-auto">
-          {loading && (
-            <div className="p-6 text-sm text-zinc-500 text-center">
-              Loading notifications...
-            </div>
-          )}
+        {!loading &&
+          items.map((notification) => {
+            const content = (
+              <div
+                onClick={() => markRead(notification)}
+                className={`px-4 py-3 border-b border-white/5 hover:bg-white/5 cursor-pointer ${
+                  notification.read ? "opacity-60" : "opacity-100"
+                }`}
+              >
+                <div className="flex gap-2">
+                  <div
+                    className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
+                      notification.read ? "bg-zinc-700" : "bg-blue-500"
+                    }`}
+                  />
 
-          {!loading && notifications.length === 0 && (
-            <div className="p-8 text-center">
-              <div className="text-2xl mb-2">🔕</div>
-              <div className="text-sm text-zinc-400">No notifications yet</div>
-              <div className="text-xs text-zinc-600 mt-1">
-                You are all caught up.
-              </div>
-            </div>
-          )}
+                  <div className="min-w-0">
+                    <div className="text-xs text-zinc-200 leading-snug">
+                      {notification.title || "Notification"}
+                    </div>
 
-          {!loading &&
-            notifications.map((notification) => {
-              const notificationCard = (
-                <div
-                  onClick={() => markOneRead(notification)}
-                  className={`px-4 py-4 border-b border-white/5 hover:bg-white/5 transition-all cursor-pointer ${
-                    notification.read ? "opacity-60" : "opacity-100"
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <div
-                      className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${
-                        notification.read ? "bg-zinc-700" : "bg-blue-500"
-                      }`}
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm text-zinc-100 font-medium leading-snug">
-                        {notification.title || "Notification"}
+                    {notification.body && (
+                      <div className="text-[11px] text-zinc-500 mt-1 leading-snug">
+                        {notification.body}
                       </div>
+                    )}
 
-                      {notification.body && (
-                        <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                          {notification.body}
-                        </div>
-                      )}
-
-                      <div className="text-[11px] text-zinc-600 font-mono mt-2">
-                        {formatTime(notification.created_at)}
-                      </div>
+                    <div className="text-[10px] text-zinc-600 font-mono mt-1">
+                      {formatDate(notification.created_at)}
                     </div>
                   </div>
                 </div>
+              </div>
+            );
+
+            if (notification.link) {
+              return (
+                <Link
+                  key={notification.id}
+                  to={notification.link}
+                  onClick={() => {
+                    markRead(notification);
+                    onClose();
+                  }}
+                >
+                  {content}
+                </Link>
               );
+            }
 
-              if (notification.link) {
-                return (
-                  <Link
-                    key={notification.id}
-                    to={notification.link}
-                    onClick={() => {
-                      markOneRead(notification);
-                      onClose();
-                    }}
-                  >
-                    {notificationCard}
-                  </Link>
-                );
-              }
-
-              return <div key={notification.id}>{notificationCard}</div>;
-            })}
-        </div>
+            return <div key={notification.id}>{content}</div>;
+          })}
       </div>
     </div>
   );
@@ -295,47 +227,31 @@ export default function Layout({ children, allowed = [] }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const nav = getNavByRole(user ? user.role : null);
+  const nav = getNav(user?.role);
 
-  const loadUnreadCount = useCallback(async () => {
+  const loadUnreadCount = async () => {
     if (!user) return;
 
     try {
       const res = await api.get("/notifications");
-      const items = Array.isArray(res.data) ? res.data : [];
-      const unread = items.filter((item) => !item.read).length;
-
-      setUnreadCount(unread);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setUnreadCount(data.filter((n) => !n.read).length);
     } catch {
       setUnreadCount(0);
     }
-  }, [user]);
-
-  useEffect(() => {
-    loadUnreadCountUnreadCount(unread);
-    } catch {
-      setUnreadCount(0);
-    }
-  }, [user]);
+  };
 
   useEffect(() => {
     loadUnreadCount();
 
-    const timer = setInterval(() => {
-      loadUnreadCount();
-    }, 30000);
+    const timer = setInterval(loadUnreadCount, 30000);
 
     return () => clearInterval(timer);
-  }, [loadUnreadCount]);
+  }, [user?.id]);
 
   useEffect(() => {
     setNotificationsOpen(false);
   }, [location.pathname]);
-
-  const closeNotifications = useCallback(() => {
-    setNotificationsOpen(false);
-    loadUnreadCount();
-  }, [loadUnreadCount]);
 
   if (loading) {
     return (
@@ -355,17 +271,17 @@ export default function Layout({ children, allowed = [] }) {
 
   const handleLogout = async () => {
     try {
-      if (typeof logout === "function") {
+      if (logout) {
         await logout();
       }
     } catch {
-      // ignore error
+      // ignore
     }
   };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex overflow-hidden">
-      <aside className="w-[228px] shrink-0 h-screen border-r border-white/10 bg-zinc-950 flex flex-col">
+      <aside className="relative w-[228px] shrink-0 h-screen border-r border-white/10 bg-zinc-950 flex flex-col">
         <div className="h-[86px] px-5 flex items-center border-b border-white/10">
           <Link to={`/${user.role}`} className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-md bg-black grid place-items-center overflow-hidden">
@@ -389,7 +305,7 @@ export default function Layout({ children, allowed = [] }) {
 
         <div className="px-5 pt-6 pb-3">
           <div className="text-[10px] text-zinc-600 font-mono tracking-[0.25em] uppercase">
-            {getRoleLabel(user.role)}
+            {roleLabel(user.role)}
           </div>
         </div>
 
@@ -407,7 +323,9 @@ export default function Layout({ children, allowed = [] }) {
                 }`
               }
             >
-              <span className="w-4 text-center text-zinc-400">{item.icon}</span>
+              <span className="w-4 text-center text-zinc-400">
+                {item.icon}
+              </span>
               <span>{item.label}</span>
             </NavLink>
           ))}
@@ -418,7 +336,7 @@ export default function Layout({ children, allowed = [] }) {
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative">
                 <div className="w-9 h-9 rounded-full bg-zinc-800 grid place-items-center text-sm font-medium">
-                  {getInitial(user)}
+                  {displayName(user).charAt(0).toUpperCase()}
                 </div>
 
                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-zinc-950" />
@@ -426,7 +344,7 @@ export default function Layout({ children, allowed = [] }) {
 
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">
-                  {getDisplayName(user)}
+                  {displayName(user)}
                 </div>
 
                 <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.2em]">
@@ -437,11 +355,11 @@ export default function Layout({ children, allowed = [] }) {
 
             <button
               type="button"
-              onClick={() => setNotificationsOpen((prev) => !prev)}
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
               className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white"
               title="Notifications"
             >
-              <span>🔔</span>
+              ♧
 
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">
@@ -460,17 +378,20 @@ export default function Layout({ children, allowed = [] }) {
             <span>Sign out</span>
           </button>
         </div>
+
+        <NotificationsBox
+          open={notificationsOpen}
+          onClose={() => {
+            setNotificationsOpen(false);
+            loadUnreadCount();
+          }}
+          onUnreadChange={setUnreadCount}
+        />
       </aside>
 
       <main className="flex-1 min-w-0 h-screen overflow-y-auto">
         <div className="px-7 py-7">{children}</div>
       </main>
-
-      <NotificationPanel
-        open={notificationsOpen}
-        onClose={closeNotifications}
-        onUnreadChange={setUnreadCount}
-      />
     </div>
   );
 }
@@ -479,16 +400,28 @@ export function PageHeader({ label, title, subtitle, children }) {
   return (
     <div className="mb-8 flex items-start justify-between gap-4">
       <div>
-        {label && <div className="label-xs text-zinc-500 mb-2">{label}</div>}
+        {label && (
+          <div className="label-xs text-zinc-500 mb-2">
+            {label}
+          </div>
+        )}
 
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {title}
+        </h1>
 
         {subtitle && (
-          <p className="text-sm text-zinc-400 mt-2 max-w-2xl">{subtitle}</p>
+          <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
+            {subtitle}
+          </p>
         )}
       </div>
 
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      {children && (
+        <div className="flex items-center gap-2">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -524,7 +457,9 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
 
   return (
     <div className="border border-white/10 rounded-md bg-zinc-900/30 p-5">
-      <div className="label-xs text-zinc-500 mb-4">{label}</div>
+      <div className="label-xs text-zinc-500 mb-4">
+        {label}
+      </div>
 
       <div
         className={`font-mono text-3xl font-semibold ${
@@ -535,7 +470,9 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
       </div>
 
       {subtitle && (
-        <div className="text-xs text-zinc-500 mt-2">{subtitle}</div>
+        <div className="text-xs text-zinc-500 mt-2">
+          {subtitle}
+        </div>
       )}
     </div>
   );
