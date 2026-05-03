@@ -156,14 +156,14 @@ export default function EditorProjects() {
 
       {detail && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 grid place-items-center p-4"
+          className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto"
           onClick={() => setDetail(null)}
         >
-          <div
-            className="bg-zinc-950 border border-white/10 rounded-md max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6"
+         <div
+            className="min-h-screen w-full max-w-7xl mx-auto px-6 md:px-10 py-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start gap-4 mb-5">
+            <div className="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur border-b border-white/10 -mx-6 md:-mx-10 px-6 md:px-10 py-5 mb-6 flex justify-between items-start gap-4">
               <div>
                 <div className="label-xs text-zinc-500 mb-1">
                   {detail.project_type}
