@@ -592,11 +592,72 @@ async def get_task(task_id: str, user: dict = Depends(get_current_user)):
     return t
 
 @api.patch("/tasks/{task_id}")
-async def update_task(task_id: str, data: dict, admin: dict = Depends(require_role("admin"))):
-    data["updated_at"] = now_iso()
-    await db.tasks.update_one({"id": task_id}, {"$set": data})
+async def update_task(task_id: str, data: dict, user: dict = Depends(get_current_user)):
     t = await db.tasks.find_one({"id": task_id}, {"_id": 0})
-    return t
+
+    if not t:
+        raise HTTPException(404, "Task not found")
+
+    if user["role"] == "admin":
+        update_data = data
+
+    elif user["role"] == "client":
+        if t.get("client_id") != user["id"]:
+            raise HTTPException(403, "Forbidden")
+
+        allowed_client_fields = {
+            "title",
+            "project_type",
+            "priority",
+            "deadline",
+            "num_videos",
+            "duration",
+            "resolution",
+            "aspect_ratio",
+            "footages_url",
+            "script_url",
+            "brief_goal",
+            "brief_audience",
+            "brief_style",
+            "brief_hook",
+            "brief_body",
+            "brief_cta",
+            "brief_references",
+            "brief_notes",
+        }
+
+        update_data = {
+            key: value for key, value in data.items()
+            if key in allowed_client_fields
+        }
+
+        if not update_data:
+            raise HTTPException(400, "No editable fields provided")
+
+    else:
+        raise HTTPException(403, "Only admin or client can edit projects")
+
+    update_data.pop("id", None)
+    update_data.pop("_id", None)
+    update_data.pop("created_at", None)
+    update_data.pop("created_by", None)
+    update_data.pop("creator_role", None)
+
+    if user["role"] == "client":
+        update_data.pop("status", None)
+        update_data.pop("assigned_editor_id", None)
+        update_data.pop("revenue", None)
+        update_data.pop("cost", None)
+
+    update_data["updated_at"] = now_iso()
+
+    await db.tasks.update_one(
+        {"id": task_id},
+        {"$set": update_data}
+    )
+
+    updated = await db.tasks.find_one({"id": task_id}, {"_id": 0})
+    return updated
 
 @api.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, admin: dict = Depends(require_role("admin"))):
