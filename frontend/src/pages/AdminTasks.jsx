@@ -586,7 +586,7 @@ export default function AdminTasks() {
           onClick={() => setDetail(null)}
         >
           <div
-            className="bg-zinc-950 border border-white/10 rounded-md max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6"
+            className="bg-zinc-950 border border-white/10 rounded-md max-w-4xl w-full my-6 mx-auto p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start gap-4 mb-4">
