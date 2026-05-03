@@ -63,19 +63,24 @@ function buildEditForm(project) {
 
 function EditProjectForm({ editForm, onChange, onCancel, onSave, saving }) {
   return (
-    <div className="mb-5 border border-white/10 rounded-md p-4 bg-zinc-900/30">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold">Edit Project</h3>
+    <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6 mb-8">
+      <div className="flex justify-between items-center mb-5">
+        <div>
+          <h2 className="text-xl font-semibold">Edit Project</h2>
+          <p className="text-sm text-zinc-500 mt-1">
+            Update your brief, assets, deadline, and project details.
+          </p>
+        </div>
 
         <button
           onClick={onCancel}
-          className="text-xs text-zinc-400 hover:text-white"
+          className="text-sm text-zinc-400 hover:text-white"
         >
           Cancel
         </button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3 text-sm">
+      <div className="grid md:grid-cols-2 gap-4">
         <input
           className={inputClass}
           value={editForm.title}
@@ -138,7 +143,7 @@ function EditProjectForm({ editForm, onChange, onCancel, onSave, saving }) {
           className={inputClass}
           value={editForm.aspect_ratio}
           onChange={(e) => onChange("aspect_ratio", e.target.value)}
-          placeholder="Aspect Ratio"
+          placeholder="Aspect ratio"
         />
 
         <input
@@ -168,7 +173,7 @@ function EditProjectForm({ editForm, onChange, onCancel, onSave, saving }) {
           rows={2}
           value={editForm.brief_audience}
           onChange={(e) => onChange("brief_audience", e.target.value)}
-          placeholder="Target Audience"
+          placeholder="Target audience"
         />
 
         <textarea
@@ -223,7 +228,7 @@ function EditProjectForm({ editForm, onChange, onCancel, onSave, saving }) {
       <button
         onClick={onSave}
         disabled={saving}
-        className="mt-4 w-full bg-white text-black rounded-md py-2 text-sm font-medium hover:bg-zinc-200 disabled:opacity-50"
+        className="mt-5 w-full bg-white text-black rounded-md py-3 text-sm font-medium hover:bg-zinc-200 disabled:opacity-50"
       >
         {saving ? "Saving..." : "Save Changes"}
       </button>
@@ -249,8 +254,12 @@ export default function ClientDashboard() {
   const [err, setErr] = useState("");
 
   const load = async () => {
-    const { data } = await api.get("/tasks");
-    setTasks(data);
+    try {
+      const { data } = await api.get("/tasks");
+      setTasks(data);
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail) || "Failed to load projects.");
+    }
   };
 
   useEffect(() => {
@@ -265,9 +274,11 @@ export default function ClientDashboard() {
 
   const openDetail = async (task, openEdit = false) => {
     try {
-      const { data } = await api.get(`/tasks/${task.id}`);
-      setDetail(data);
       setErr("");
+
+      const { data } = await api.get(`/tasks/${task.id}`);
+
+      setDetail(data);
 
       if (openEdit) {
         setEditForm(buildEditForm(data));
@@ -281,8 +292,16 @@ export default function ClientDashboard() {
     }
   };
 
+  const goBack = () => {
+    setDetail(null);
+    setEditing(false);
+    setEditForm(null);
+    setRevisionText("");
+  };
+
   const startEdit = () => {
     if (!detail) return;
+
     setEditForm(buildEditForm(detail));
     setEditing(true);
   };
@@ -328,9 +347,10 @@ export default function ClientDashboard() {
       });
 
       setRevisionText("");
-      setDetail(null);
-      setEditing(false);
-      setEditForm(null);
+
+      const { data } = await api.get(`/tasks/${id}`);
+      setDetail(data);
+
       await load();
     } catch (e) {
       setErr(formatApiError(e?.response?.data?.detail) || "Failed to request revision.");
@@ -347,6 +367,7 @@ export default function ClientDashboard() {
       setEditing(false);
       setEditForm(null);
       setReviewModal(task);
+
       await load();
     } catch (e) {
       setErr(formatApiError(e?.response?.data?.detail) || "Failed to approve project.");
@@ -354,7 +375,11 @@ export default function ClientDashboard() {
   };
 
   const submitReview = async () => {
+    if (!reviewModal?.id) return;
+
     try {
+      setErr("");
+
       await api.post(`/tasks/${reviewModal.id}/review`, {
         rating,
         feedback,
@@ -367,6 +392,210 @@ export default function ClientDashboard() {
       setErr(formatApiError(e?.response?.data?.detail) || "Failed to submit review.");
     }
   };
+
+  if (detail) {
+    return (
+      <Layout allowed={["client"]}>
+        <div className="max-w-7xl mx-auto pb-20">
+          <div className="flex items-start justify-between gap-4 mb-8 border-b border-white/10 pb-6">
+            <div>
+              <button
+                onClick={goBack}
+                className="text-sm text-zinc-400 hover:text-white mb-5"
+              >
+                ← Back to Projects
+              </button>
+
+              <div className="label-xs text-zinc-500 mb-2">
+                {detail.project_type || "Project"}
+              </div>
+
+              <h1 className="text-4xl font-semibold tracking-tight">
+                {detail.title}
+              </h1>
+
+              <p className="text-zinc-500 mt-2">
+                Status: <span className="text-zinc-300">{detail.status}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {detail.status !== "completed" && (
+                <button
+                  onClick={startEdit}
+                  className="px-4 py-2 rounded-md bg-white text-black text-sm font-medium hover:bg-zinc-200"
+                >
+                  Edit Project
+                </button>
+              )}
+
+              <button
+                onClick={goBack}
+                className="px-4 py-2 rounded-md border border-white/10 text-sm hover:bg-white/5"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+
+          {err && (
+            <div className="mb-5 text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">
+              {err}
+            </div>
+          )}
+
+          {editing && editForm && (
+            <EditProjectForm
+              editForm={editForm}
+              onChange={updateEditForm}
+              onCancel={() => {
+                setEditing(false);
+                setEditForm(null);
+              }}
+              onSave={saveEdit}
+              saving={savingEdit}
+            />
+          )}
+
+          <div className="grid xl:grid-cols-3 gap-6">
+            <section className="xl:col-span-2 space-y-6">
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Project Details</h2>
+
+                <div className="grid md:grid-cols-2 gap-4 text-sm">
+                  <InfoRow label="Project Type" value={detail.project_type} />
+                  <InfoRow label="Priority" value={detail.priority} />
+                  <InfoRow label="Status" value={detail.status} />
+                  <InfoRow label="Deadline" value={detail.deadline?.slice(0, 10)} />
+                  <InfoRow label="Videos" value={detail.num_videos} />
+                  <InfoRow label="Duration" value={detail.duration} />
+                  <InfoRow label="Resolution" value={detail.resolution} />
+                  <InfoRow label="Aspect Ratio" value={detail.aspect_ratio} />
+                </div>
+              </div>
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Creative Brief</h2>
+
+                <div className="space-y-3 text-sm">
+                  <InfoRow label="Goal" value={detail.brief_goal} />
+                  <InfoRow label="Audience" value={detail.brief_audience} />
+                  <InfoRow label="Style" value={detail.brief_style} />
+                  <InfoRow label="Hook" value={detail.brief_hook} />
+                  <InfoRow label="Body" value={detail.brief_body} />
+                  <InfoRow label="CTA" value={detail.brief_cta} />
+                  <InfoRow label="References" value={detail.brief_references} />
+                  <InfoRow label="Notes" value={detail.brief_notes} />
+                </div>
+              </div>
+
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Drafts Delivered</h2>
+
+                {(detail.drafts || []).length > 0 ? (
+                  <div className="space-y-3">
+                    {(detail.drafts || []).map((draft) => (
+                      <div
+                        key={draft.id}
+                        className="border border-white/10 rounded-md p-4 text-sm"
+                      >
+                        <a
+                          href={draft.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-400 hover:underline break-all"
+                        >
+                          {draft.url}
+                        </a>
+
+                        <div className="text-zinc-400 mt-2">{draft.note}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-zinc-500">No drafts yet.</div>
+                )}
+              </div>
+
+              {(detail.revisions || []).length > 0 && (
+                <div className="border border-red-500/20 rounded-xl bg-red-500/5 p-6">
+                  <h2 className="text-lg font-semibold mb-5 text-red-400">
+                    Revision History
+                  </h2>
+
+                  {(detail.revisions || []).map((revision) => (
+                    <div
+                      key={revision.id}
+                      className="border border-red-500/20 rounded-md p-4 mb-3 text-sm text-red-200"
+                    >
+                      {revision.note}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className="space-y-6">
+              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                <h2 className="text-lg font-semibold mb-5">Assets</h2>
+
+                <div className="space-y-3 text-sm">
+                  <LinkRow label="Footages URL" url={detail.footages_url} />
+                  <LinkRow label="Script URL" url={detail.script_url} />
+                </div>
+              </div>
+
+              {detail.status !== "completed" && (
+                <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
+                  <h2 className="text-lg font-semibold mb-5">
+                    Request Revision
+                  </h2>
+
+                  <textarea
+                    data-testid="revision-note-input"
+                    rows={4}
+                    className={textareaClass}
+                    value={revisionText}
+                    onChange={(e) => setRevisionText(e.target.value)}
+                    placeholder="Describe what should be changed..."
+                  />
+
+                  <button
+                    data-testid="request-revision-button"
+                    disabled={!revisionText.trim()}
+                    onClick={() => requestRevision(detail.id)}
+                    className="w-full mt-3 border border-white/10 rounded-md py-2 text-sm hover:bg-white/5 disabled:opacity-40"
+                  >
+                    Request Revision
+                  </button>
+                </div>
+              )}
+
+              {detail.status !== "completed" && (
+                <div className="border border-emerald-500/20 rounded-xl bg-emerald-500/5 p-6">
+                  <h2 className="text-lg font-semibold mb-3 text-emerald-400">
+                    Approve Work
+                  </h2>
+
+                  <p className="text-sm text-zinc-400 mb-4">
+                    Approve the project when you are happy with the delivered draft.
+                  </p>
+
+                  <button
+                    data-testid="approve-work-button"
+                    onClick={() => approveTask(detail)}
+                    className="w-full bg-emerald-500 text-black font-medium rounded-md py-3 hover:bg-emerald-400"
+                  >
+                    Approve & Continue
+                  </button>
+                </div>
+              )}
+            </aside>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout allowed={["client"]}>
@@ -395,7 +624,7 @@ export default function ClientDashboard() {
       </div>
 
       {err && (
-        <div className="mb-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">
+        <div className="mb-5 text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md">
           {err}
         </div>
       )}
@@ -460,7 +689,7 @@ export default function ClientDashboard() {
 
       {pastTasks.length > 0 && (
         <>
-          <h2 className="text-lg font-semibold mb-3">Past works</h2>
+          <h2 className="text-lg font-semibold mb-3">Past Works</h2>
 
           <div className="grid md:grid-cols-3 gap-4">
             {pastTasks.map((task) => (
@@ -469,7 +698,9 @@ export default function ClientDashboard() {
                 className="border border-white/10 rounded-md p-4 bg-zinc-900/30"
               >
                 <div className="font-medium">{task.title}</div>
-                <div className="text-xs text-zinc-500 mt-1">{task.project_type}</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {task.project_type}
+                </div>
 
                 <div className="flex gap-2 mt-3">
                   <Badge tone="good">Delivered</Badge>
@@ -485,182 +716,6 @@ export default function ClientDashboard() {
             ))}
           </div>
         </>
-      )}
-
-      {detail && (
-       <div
-          className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto"
-          onClick={() => setDetail(null)}
-        >
-          <div
-            className="min-h-screen w-full max-w-7xl mx-auto px-6 md:px-10 py-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur border-b border-white/10 -mx-6 md:-mx-10 px-6 md:px-10 py-5 mb-6 flex justify-between items-start gap-4">
-              <div>
-                <div className="label-xs text-zinc-500 mb-1">
-                  {detail.project_type}
-                </div>
-
-                <h2 className="text-2xl font-semibold">{detail.title}</h2>
-
-                <div className="text-sm text-zinc-400 mt-1">
-                  Due {detail.deadline?.slice(0, 10)} · Status: {detail.status}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={startEdit}
-                  className="text-xs px-3 py-1.5 rounded-md bg-white/5 border border-white/10 text-zinc-200 hover:bg-white/10 transition-all"
-                  data-testid="client-edit-project-button"
-                >
-                  Edit
-                </button>
-
-                <button
-                  onClick={() => setDetail(null)}
-                  className="text-zinc-500 hover:text-white"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {editing && editForm && (
-              <EditProjectForm
-                editForm={editForm}
-                onChange={updateEditForm}
-                onCancel={() => {
-                  setEditing(false);
-                  setEditForm(null);
-                }}
-                onSave={saveEdit}
-                saving={savingEdit}
-              />
-            )}
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Project Details</h3>
-
-              <div className="grid md:grid-cols-2 gap-3 text-sm bg-zinc-900/50 border border-white/10 rounded-md p-4">
-                <InfoRow label="Project Type" value={detail.project_type} />
-                <InfoRow label="Priority" value={detail.priority} />
-                <InfoRow label="Deadline" value={detail.deadline?.slice(0, 10)} />
-                <InfoRow label="Status" value={detail.status} />
-                <InfoRow label="Videos" value={detail.num_videos} />
-                <InfoRow label="Duration" value={detail.duration} />
-                <InfoRow label="Resolution" value={detail.resolution} />
-                <InfoRow label="Aspect Ratio" value={detail.aspect_ratio} />
-              </div>
-            </section>
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Assets</h3>
-
-              <div className="space-y-2 text-sm bg-zinc-900/50 border border-white/10 rounded-md p-4">
-                <LinkRow label="Footages URL" url={detail.footages_url} />
-                <LinkRow label="Script URL" url={detail.script_url} />
-              </div>
-            </section>
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Creative Brief</h3>
-
-              <div className="space-y-2 text-sm bg-zinc-900/50 border border-white/10 rounded-md p-4">
-                <InfoRow label="Goal" value={detail.brief_goal} />
-                <InfoRow label="Target Audience" value={detail.brief_audience} />
-                <InfoRow label="Style" value={detail.brief_style} />
-                <InfoRow label="Hook" value={detail.brief_hook} />
-                <InfoRow label="Body" value={detail.brief_body} />
-                <InfoRow label="CTA" value={detail.brief_cta} />
-                <InfoRow label="References" value={detail.brief_references} />
-                <InfoRow label="Notes" value={detail.brief_notes} />
-              </div>
-            </section>
-
-            <section className="mb-4">
-              <h3 className="label-xs text-zinc-400 mb-2">Drafts</h3>
-
-              <div className="space-y-2">
-                {(detail.drafts || []).map((draft) => (
-                  <div
-                    key={draft.id}
-                    className="border border-white/10 rounded-md p-3 text-sm"
-                  >
-                    <a
-                      href={draft.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-400 hover:underline font-mono text-xs break-all"
-                    >
-                      {draft.url}
-                    </a>
-
-                    <div className="text-zinc-400 mt-1">{draft.note}</div>
-                  </div>
-                ))}
-
-                {(!detail.drafts || detail.drafts.length === 0) && (
-                  <div className="text-xs text-zinc-500">No draft yet.</div>
-                )}
-              </div>
-            </section>
-
-            {(detail.revisions || []).length > 0 && (
-              <section className="mb-4">
-                <h3 className="label-xs text-zinc-400 mb-2">Revision History</h3>
-
-                {(detail.revisions || []).map((revision) => (
-                  <div
-                    key={revision.id}
-                    className="text-sm bg-red-500/10 border border-red-500/20 rounded-md p-3 mb-2"
-                  >
-                    {revision.note}
-                  </div>
-                ))}
-              </section>
-            )}
-
-            {detail.status !== "completed" && (
-              <div className="border border-white/10 rounded-md p-4 bg-zinc-900/30 mb-3">
-                <div className="label-xs text-zinc-400 mb-2">
-                  Request a revision
-                </div>
-
-                <textarea
-                  data-testid="revision-note-input"
-                  rows={3}
-                  className={textareaClass}
-                  value={revisionText}
-                  onChange={(e) => setRevisionText(e.target.value)}
-                  placeholder="Describe what to change…"
-                />
-
-                <button
-                  data-testid="request-revision-button"
-                  disabled={!revisionText.trim()}
-                  onClick={() => requestRevision(detail.id)}
-                  className="w-full mt-2 border border-white/10 rounded-md py-2 text-sm hover:bg-white/5 disabled:opacity-40"
-                >
-                  Request revision
-                </button>
-              </div>
-            )}
-
-            {detail.status !== "completed" && (
-              <button
-                data-testid="approve-work-button"
-                onClick={() => approveTask(detail)}
-                className="w-full bg-emerald-500 text-black font-medium rounded-md py-3 hover:bg-emerald-400"
-              >
-                Approve & continue
-              </button>
-            )}
-
-            {err && <div className="mt-2 text-red-400 text-sm">{err}</div>}
-          </div>
-        </div>
       )}
 
       {reviewModal && (
@@ -690,7 +745,7 @@ export default function ClientDashboard() {
               data-testid="review-feedback"
               rows={3}
               className={textareaClass}
-              placeholder="Share feedback…"
+              placeholder="Share feedback..."
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
             />
