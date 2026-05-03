@@ -489,7 +489,7 @@ export default function ClientDashboard() {
 
       {detail && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 grid place-items-center p-4"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto p-4"
           onClick={() => setDetail(null)}
         >
           <div
