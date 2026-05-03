@@ -205,7 +205,15 @@ def is_online(u: dict) -> bool:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
+def scrub_task_for_editor(task: dict) -> dict:
+    """
+    Editors can see full project information except money-related fields.
+    """
+    clean = dict(task)
+    clean.pop("_id", None)
+    clean.pop("revenue", None)
+    clean.pop("cost", None)
+    return clean
 # --- XP / Level / Badge logic ---
 LEVEL_THRESHOLDS = [
     (1, "Rookie", 0),
