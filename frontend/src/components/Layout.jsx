@@ -544,7 +544,9 @@ export function PageHeader({ label, title, subtitle, children }) {
     <div className="mb-6 lg:mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         {label && (
-          <div className="label-xs text-zinc-500 mb-2">{label}</div>
+          <div className="label-xs text-zinc-500 mb-2">
+            {label}
+          </div>
         )}
 
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
@@ -552,12 +554,16 @@ export function PageHeader({ label, title, subtitle, children }) {
         </h1>
 
         {subtitle && (
-          <p className="text-sm text-zinc-400 mt-2 max-w-2xl">{subtitle}</p>
+          <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
+            {subtitle}
+          </p>
         )}
       </div>
 
       {children && (
-        <div className="flex items-center gap-2 flex-wrap">{children}</div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {children}
+        </div>
       )}
     </div>
   );
@@ -594,7 +600,9 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
 
   return (
     <div className="border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
-      <div className="label-xs text-zinc-500 mb-3 lg:mb-4">{label}</div>
+      <div className="label-xs text-zinc-500 mb-3 lg:mb-4">
+        {label}
+      </div>
 
       <div
         className={`font-mono text-2xl lg:text-3xl font-semibold ${
@@ -605,7 +613,9 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
       </div>
 
       {subtitle && (
-        <div className="text-xs text-zinc-500 mt-2">{subtitle}</div>
+        <div className="text-xs text-zinc-500 mt-2">
+          {subtitle}
+        </div>
       )}
     </div>
   );
