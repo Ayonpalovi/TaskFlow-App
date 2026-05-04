@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -105,7 +105,7 @@ function NotificationsPanel({ open, onClose, onUnreadChange }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -126,13 +126,13 @@ function NotificationsPanel({ open, onClose, onUnreadChange }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [onUnreadChange]);
 
   useEffect(() => {
     if (open) {
       loadNotifications();
     }
-  }, [open]);
+  }, [open, loadNotifications]);
 
   const markAllRead = async () => {
     try {
@@ -339,7 +339,7 @@ export default function Layout({ children, allowed = [] }) {
 
   const nav = getNav(user?.role);
 
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -349,7 +349,7 @@ export default function Layout({ children, allowed = [] }) {
     } catch {
       setUnreadCount(0);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadUnreadCount();
@@ -357,7 +357,7 @@ export default function Layout({ children, allowed = [] }) {
     const timer = setInterval(loadUnreadCount, 30000);
 
     return () => clearInterval(timer);
-  }, [user?.id]);
+  }, [loadUnreadCount]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -392,7 +392,6 @@ export default function Layout({ children, allowed = [] }) {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white lg:flex">
-      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-[228px] shrink-0 h-screen border-r border-white/10 bg-zinc-950 flex-col fixed left-0 top-0">
         <div className="h-[86px] px-5 flex items-center border-b border-white/10">
           <Link to={`/${user.role}`} className="flex items-center gap-3">
@@ -433,7 +432,6 @@ export default function Layout({ children, allowed = [] }) {
         />
       </aside>
 
-      {/* Mobile Top Bar */}
       <header className="lg:hidden sticky top-0 z-40 h-16 bg-zinc-950/95 backdrop-blur border-b border-white/10 px-4 flex items-center justify-between">
         <button
           type="button"
@@ -467,7 +465,6 @@ export default function Layout({ children, allowed = [] }) {
         </button>
       </header>
 
-      {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
           <button
@@ -485,6 +482,7 @@ export default function Layout({ children, allowed = [] }) {
                   alt="Motionholic OS"
                   className="w-8 h-8 object-contain"
                 />
+
                 <div>
                   <div className="text-sm font-semibold">Motionholic OS</div>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em]">
@@ -523,7 +521,6 @@ export default function Layout({ children, allowed = [] }) {
         </div>
       )}
 
-      {/* Main Content */}
       <main className="lg:ml-[228px] flex-1 min-w-0">
         <div className="px-4 py-5 sm:px-6 lg:px-7 lg:py-7">
           {children}
@@ -547,9 +544,7 @@ export function PageHeader({ label, title, subtitle, children }) {
     <div className="mb-6 lg:mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         {label && (
-          <div className="label-xs text-zinc-500 mb-2">
-            {label}
-          </div>
+          <div className="label-xs text-zinc-500 mb-2">{label}</div>
         )}
 
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
@@ -557,16 +552,12 @@ export function PageHeader({ label, title, subtitle, children }) {
         </h1>
 
         {subtitle && (
-          <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
-            {subtitle}
-          </p>
+          <p className="text-sm text-zinc-400 mt-2 max-w-2xl">{subtitle}</p>
         )}
       </div>
 
       {children && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {children}
-        </div>
+        <div className="flex items-center gap-2 flex-wrap">{children}</div>
       )}
     </div>
   );
@@ -603,9 +594,7 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
 
   return (
     <div className="border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
-      <div className="label-xs text-zinc-500 mb-3 lg:mb-4">
-        {label}
-      </div>
+      <div className="label-xs text-zinc-500 mb-3 lg:mb-4">{label}</div>
 
       <div
         className={`font-mono text-2xl lg:text-3xl font-semibold ${
@@ -616,9 +605,7 @@ export function MetricCard({ label, value, tone = "default", subtitle }) {
       </div>
 
       {subtitle && (
-        <div className="text-xs text-zinc-500 mt-2">
-          {subtitle}
-        </div>
+        <div className="text-xs text-zinc-500 mt-2">{subtitle}</div>
       )}
     </div>
   );
