@@ -1548,6 +1548,10 @@ async def websocket_endpoint(ws: WebSocket, token: str, channel: str):
 
 app.include_router(api)
 
+from workflow_api import build_workflow_router
+
+app.include_router(build_workflow_router(sys.modules[__name__]))
+
 # --- Logging & Startup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
