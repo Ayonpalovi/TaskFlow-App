@@ -14,9 +14,19 @@ COLLECTIONS: Dict[str, str] = {
     "calendarItems": "workflow_calendar_items",
     "happinessScores": "workflow_happiness_scores",
     "projectFinance": "workflow_project_finance",
+    "editorPaymentInvoices": "workflow_editor_payment_invoices",
 }
 
-ADMIN_ONLY = {"projectFinance", "invoices"}
+PROJECT_RELATED_COLLECTIONS = [
+    "videoVersions",
+    "timestampFeedback",
+    "invoices",
+    "calendarItems",
+    "happinessScores",
+    "projectFinance",
+]
+
+ADMIN_ONLY = {"projectFinance", "invoices", "editorPaymentInvoices"}
 CLIENT_CREATE = {"brandProfiles", "timestampFeedback", "calendarItems", "happinessScores"}
 EDITOR_CREATE = {"videoVersions", "timestampFeedback"}
 CLIENT_PATCH = {"brandProfiles", "timestampFeedback", "calendarItems", "happinessScores"}
@@ -37,6 +47,10 @@ def collection(server, name: str):
     if name not in COLLECTIONS:
         raise HTTPException(404, "Unknown workflow collection")
     return getattr(server.db, COLLECTIONS[name])
+
+
+def invoice_number(prefix: str) -> str:
+    return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
 
 async def task(server, task_id: Optional[str]):
@@ -87,6 +101,8 @@ async def can_access_doc(server, user: dict, collection_name: str, doc: dict) ->
         if user["role"] == "editor":
             return False
         return doc.get("client_id") == user["id"]
+    if collection_name == "editorPaymentInvoices":
+        return user["role"] == "editor" and doc.get("editor_id") == user["id"]
     if doc.get("project_id"):
         return await can_read_project(server, user, doc.get("project_id"))
     if doc.get("client_id"):
@@ -122,6 +138,11 @@ async def collection_items(server, user: dict, collection_name: str):
     if user["role"] == "admin":
         return [clean(x) for x in await coll.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
 
+    if collection_name == "editorPaymentInvoices":
+        if user["role"] != "editor":
+            return []
+        return [clean(x) for x in await coll.find({"editor_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+
     task_ids, client_ids = await visible_scope(server, user)
     if collection_name == "brandProfiles":
         query = {"client_id": user["id"]}
@@ -137,6 +158,65 @@ async def collection_items(server, user: dict, collection_name: str):
     return [clean(x) for x in await coll.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)]
 
 
+async def cascade_delete_project(server, task_id: str):
+    deleted = {}
+    for name in PROJECT_RELATED_COLLECTIONS:
+        result = await collection(server, name).delete_many({"project_id": task_id})
+        deleted[name] = result.deleted_count
+
+    # Brand profiles are client-level assets, so only remove records explicitly tied to this project.
+    result = await collection(server, "brandProfiles").delete_many({"project_id": task_id})
+    deleted["brandProfiles"] = result.deleted_count
+
+    # Remove editor payment proofs that were specifically generated for this project, without touching monthly invoices.
+    result = await collection(server, "editorPaymentInvoices").delete_many({"project_id": task_id})
+    deleted["editorPaymentInvoices"] = result.deleted_count
+
+    return deleted
+
+
+async def build_editor_payment_invoice(server, editor_id: str, user: dict):
+    editor = await server.db.users.find_one({"id": editor_id, "role": "editor"}, {"_id": 0})
+    if not editor:
+        raise HTTPException(404, "Editor not found")
+
+    tasks = await server.db.tasks.find({"assigned_editor_id": editor_id, "status": "completed"}, {"_id": 0}).to_list(2000)
+    charge_per_project = float(editor.get("charge_per_project") or editor.get("rate_per_project") or 0)
+    completed_count = len(tasks)
+    amount = completed_count * charge_per_project
+
+    existing_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    coll = collection(server, "editorPaymentInvoices")
+    existing = await coll.find_one({"editor_id": editor_id, "month": existing_month, "status": "Paid"}, {"_id": 0})
+    if existing:
+        return clean(existing)
+
+    task_ids = [item.get("id") for item in tasks if item.get("id")]
+    doc = {
+        "id": str(uuid.uuid4()),
+        "invoice_number": invoice_number("EPI"),
+        "type": "editor_payment_proof",
+        "editor_id": editor_id,
+        "editor_name": editor.get("anime_name") or editor.get("display_name") or editor.get("email"),
+        "editor_real_name": editor.get("real_name"),
+        "month": existing_month,
+        "completed_projects": completed_count,
+        "completed_project_ids": task_ids,
+        "charge_per_project": charge_per_project,
+        "amount": amount,
+        "currency": "USD",
+        "status": "Paid",
+        "paid_date": now_iso(),
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "created_by": user["id"],
+        "created_by_role": user["role"],
+        "notes": "Auto-generated when Admin marked editor as paid.",
+    }
+    await coll.insert_one(doc)
+    return clean(doc)
+
+
 def build_task_compat_router(server):
     router = APIRouter(prefix="/api", tags=["workflow-task-compat"])
 
@@ -145,28 +225,23 @@ def build_task_compat_router(server):
         if user["role"] != "admin":
             raise HTTPException(403, "Admin only")
 
-        editor_id = payload.get("assigned_editor_id") or payload.get("editor_id")
-        if not editor_id:
-            raise HTTPException(400, "assigned_editor_id is required")
-
         current_task = await server.db.tasks.find_one({"id": task_id}, {"_id": 0})
         if not current_task:
             raise HTTPException(404, "Task not found")
 
-        editor = await server.db.users.find_one({"id": editor_id, "role": "editor"}, {"_id": 0})
-        if not editor:
-            raise HTTPException(404, "Editor not found")
+        update = dict(payload or {})
+        editor_id = update.get("assigned_editor_id") or update.get("editor_id")
+        if editor_id:
+            editor = await server.db.users.find_one({"id": editor_id, "role": "editor"}, {"_id": 0})
+            if not editor:
+                raise HTTPException(404, "Editor not found")
+            update["assigned_editor_id"] = editor_id
+            update["editor_id"] = editor_id
 
-        update = {
-            "assigned_editor_id": editor_id,
-            "editor_id": editor_id,
-            "status": payload.get("status") or "active",
-            "updated_at": now_iso(),
-        }
-
+        update["updated_at"] = now_iso()
         await server.db.tasks.update_one({"id": task_id}, {"$set": update})
 
-        if hasattr(server.db, "requests"):
+        if hasattr(server.db, "requests") and editor_id:
             await server.db.requests.update_many(
                 {"task_id": task_id, "status": "pending"},
                 {"$set": {"status": "closed", "updated_at": now_iso()}},
@@ -187,6 +262,65 @@ def build_workflow_router(server):
         for name in COLLECTIONS:
             state[name] = await collection_items(server, user, name)
         return state
+
+    @router.delete("/projects/{task_id}/delete-all")
+    async def workflow_delete_project_all(task_id: str, user: dict = Depends(server.get_current_user)):
+        if user["role"] != "admin":
+            raise HTTPException(403, "Admin only")
+
+        current_task = await server.db.tasks.find_one({"id": task_id}, {"_id": 0})
+        if not current_task:
+            raise HTTPException(404, "Task not found")
+
+        deleted_related = await cascade_delete_project(server, task_id)
+        task_result = await server.db.tasks.delete_one({"id": task_id})
+
+        if hasattr(server.db, "requests"):
+            await server.db.requests.delete_many({"task_id": task_id})
+        if hasattr(server.db, "notifications"):
+            await server.db.notifications.delete_many({"task_id": task_id})
+
+        return {"ok": True, "deleted_project": task_result.deleted_count, "deleted_related": deleted_related}
+
+    @router.post("/editor-payments/{editor_id}/mark-paid")
+    async def workflow_mark_editor_paid(editor_id: str, user: dict = Depends(server.get_current_user)):
+        if user["role"] != "admin":
+            raise HTTPException(403, "Admin only")
+
+        payment_invoice = await build_editor_payment_invoice(server, editor_id, user)
+
+        if hasattr(server.db, "payment_history"):
+            await server.db.payment_history.update_one(
+                {"editor_id": editor_id, "month": payment_invoice["month"]},
+                {"$set": {
+                    "id": payment_invoice["id"],
+                    "editor_id": editor_id,
+                    "editor_name": payment_invoice.get("editor_name"),
+                    "real_name": payment_invoice.get("editor_real_name"),
+                    "month": payment_invoice["month"],
+                    "completed": payment_invoice["completed_projects"],
+                    "amount": payment_invoice["amount"],
+                    "status": "paid",
+                    "invoice_id": payment_invoice["id"],
+                    "invoice_number": payment_invoice["invoice_number"],
+                    "updated_at": now_iso(),
+                }, "$setOnInsert": {"created_at": now_iso()}},
+                upsert=True,
+            )
+
+        return payment_invoice
+
+    @router.get("/editor-payment-invoices")
+    async def workflow_admin_editor_payment_invoices(user: dict = Depends(server.get_current_user)):
+        if user["role"] != "admin":
+            raise HTTPException(403, "Admin only")
+        return await collection_items(server, user, "editorPaymentInvoices")
+
+    @router.get("/editor-payment-invoices/me")
+    async def workflow_my_editor_payment_invoices(user: dict = Depends(server.get_current_user)):
+        if user["role"] != "editor":
+            raise HTTPException(403, "Editor only")
+        return await collection_items(server, user, "editorPaymentInvoices")
 
     @router.get("/{collection_name}")
     async def workflow_list(collection_name: str, user: dict = Depends(server.get_current_user)):
