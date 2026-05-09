@@ -16,7 +16,7 @@ import AdminApprovals from "./pages/AdminApprovals";
 import AdminPayments from "./pages/AdminPayments";
 
 import Leaderboard from "./pages/Leaderboard";
-import WorkflowSuite from "./pages/WorkflowSuite";
+import WorkflowSuite from "./pages/WorkflowSuiteDB";
 
 import EditorDashboard from "./pages/EditorDashboard";
 import EditorAvailable from "./pages/EditorAvailable";
