@@ -4,12 +4,13 @@ import NotificationBell from "./NotificationBell";
 import {
   House, Kanban, Users, ChatsCircle, Trophy, ChartBar,
   VideoCamera, FolderOpen, ClipboardText, SignOut, CalendarBlank,
-  CheckSquare, CurrencyDollar, UserCircle, Plus,
+  CheckSquare, CurrencyDollar, UserCircle, Plus, Sparkle,
 } from "@phosphor-icons/react";
 
 const NAV = {
   admin: [
     { to: "/admin", icon: House, label: "Overview", end: true },
+    { to: "/admin/workflow", icon: Sparkle, label: "Workflow Suite" },
     { to: "/admin/approvals", icon: CheckSquare, label: "Approvals" },
     { to: "/admin/tasks", icon: Kanban, label: "Tasks" },
     { to: "/admin/create", icon: ClipboardText, label: "Create Task" },
@@ -21,6 +22,7 @@ const NAV = {
   ],
   editor: [
     { to: "/editor", icon: House, label: "Dashboard", end: true },
+    { to: "/editor/workflow", icon: Sparkle, label: "Workflow Suite" },
     { to: "/editor/profile", icon: UserCircle, label: "Profile" },
     { to: "/editor/available", icon: FolderOpen, label: "Available" },
     { to: "/editor/projects", icon: VideoCamera, label: "My Projects" },
@@ -30,6 +32,7 @@ const NAV = {
   ],
   client: [
     { to: "/client", icon: House, label: "Dashboard", end: true },
+    { to: "/client/workflow", icon: Sparkle, label: "Workflow Suite" },
     { to: "/client/create", icon: Plus, label: "Create Project" },
     { to: "/client/panel", icon: VideoCamera, label: "Project Hub" },
     { to: "/client/projects", icon: FolderOpen, label: "Projects" },

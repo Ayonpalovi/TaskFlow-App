@@ -16,6 +16,7 @@ import AdminApprovals from "./pages/AdminApprovals";
 import AdminPayments from "./pages/AdminPayments";
 
 import Leaderboard from "./pages/Leaderboard";
+import WorkflowSuite from "./pages/WorkflowSuite";
 
 import EditorDashboard from "./pages/EditorDashboard";
 import EditorAvailable from "./pages/EditorAvailable";
@@ -44,12 +45,10 @@ function RootRedirect() {
     return <LoadingScreen />;
   }
 
-  // If user is not logged in OR user role is missing, go to login
   if (!user || !user.role) {
     return <Navigate to="/login" replace />;
   }
 
-  // Only allow valid roles
   const validRoles = ["admin", "editor", "client"];
 
   if (!validRoles.includes(user.role)) {
@@ -83,187 +82,38 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public Routes */}
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
 
-            {/* Admin Routes */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/tasks"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminTasks />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/create"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminCreateTask />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/approvals"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminApprovals />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/payments"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminPayments />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminUsers />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/calendar"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminCalendar />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/leaderboard"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <Leaderboard allowed={["admin"]} />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/chat"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <ChatPage mode="admin" />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/workflow" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowSuite /></ProtectedRoute>} />
+            <Route path="/admin/tasks" element={<ProtectedRoute allowedRoles={["admin"]}><AdminTasks /></ProtectedRoute>} />
+            <Route path="/admin/create" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCreateTask /></ProtectedRoute>} />
+            <Route path="/admin/approvals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminApprovals /></ProtectedRoute>} />
+            <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminPayments /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["admin"]}><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
+            <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
+            <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
 
-            {/* Editor Routes */}
-            <Route
-              path="/editor"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <EditorDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/editor/profile"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <EditorProfile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/editor/available"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <EditorAvailable />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/editor/projects"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <EditorProjects />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/editor/performance"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <EditorPerformance />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/editor/leaderboard"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <Leaderboard allowed={["editor"]} />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/editor/chat"
-              element={
-                <ProtectedRoute allowedRoles={["editor"]}>
-                  <ChatPage mode="editor" />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
+            <Route path="/editor/workflow" element={<ProtectedRoute allowedRoles={["editor"]}><WorkflowSuite /></ProtectedRoute>} />
+            <Route path="/editor/profile" element={<ProtectedRoute allowedRoles={["editor"]}><EditorProfile /></ProtectedRoute>} />
+            <Route path="/editor/available" element={<ProtectedRoute allowedRoles={["editor"]}><EditorAvailable /></ProtectedRoute>} />
+            <Route path="/editor/projects" element={<ProtectedRoute allowedRoles={["editor"]}><EditorProjects /></ProtectedRoute>} />
+            <Route path="/editor/performance" element={<ProtectedRoute allowedRoles={["editor"]}><EditorPerformance /></ProtectedRoute>} />
+            <Route path="/editor/leaderboard" element={<ProtectedRoute allowedRoles={["editor"]}><Leaderboard allowed={["editor"]} /></ProtectedRoute>} />
+            <Route path="/editor/chat" element={<ProtectedRoute allowedRoles={["editor"]}><ChatPage mode="editor" /></ProtectedRoute>} />
 
-            {/* Client Routes */}
-            <Route
-              path="/client"
-              element={
-                <ProtectedRoute allowedRoles={["client"]}>
-                  <ClientDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/client/projects"
-              element={
-                <ProtectedRoute allowedRoles={["client"]}>
-                  <ClientDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/client/panel"
-              element={
-                <ProtectedRoute allowedRoles={["client"]}>
-                  <ClientPanel />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/client/create"
-              element={
-                <ProtectedRoute allowedRoles={["client"]}>
-                  <ClientCreateProject />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/client/chat"
-              element={
-                <ProtectedRoute allowedRoles={["client"]}>
-                  <ChatPage mode="client" />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/client" element={<ProtectedRoute allowedRoles={["client"]}><ClientDashboard /></ProtectedRoute>} />
+            <Route path="/client/workflow" element={<ProtectedRoute allowedRoles={["client"]}><WorkflowSuite /></ProtectedRoute>} />
+            <Route path="/client/projects" element={<ProtectedRoute allowedRoles={["client"]}><ClientDashboard /></ProtectedRoute>} />
+            <Route path="/client/panel" element={<ProtectedRoute allowedRoles={["client"]}><ClientPanel /></ProtectedRoute>} />
+            <Route path="/client/create" element={<ProtectedRoute allowedRoles={["client"]}><ClientCreateProject /></ProtectedRoute>} />
+            <Route path="/client/chat" element={<ProtectedRoute allowedRoles={["client"]}><ChatPage mode="client" /></ProtectedRoute>} />
 
-            {/* Fallback Route */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
