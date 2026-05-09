@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import DashboardMotionProvider from "./components/DashboardMotionProvider";
 
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -81,6 +82,7 @@ function App() {
     <div className="App">
       <AuthProvider>
         <BrowserRouter>
+          <DashboardMotionProvider />
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
