@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
 import DeadlineBar from "../components/DeadlineBar";
 import { api } from "../lib/api";
+import { playActionFeedback } from "../lib/actionFeedback";
 
 export default function AdminApprovals() {
   const [pendingProjects, setPendingProjects] = useState([]);
@@ -14,9 +15,23 @@ export default function AdminApprovals() {
   };
   useEffect(() => { load(); }, []);
 
-  const approveProject = async (id) => { await api.post(`/tasks/${id}/admin-approve`); load(); };
-  const rejectProject = async (id) => { await api.post(`/tasks/${id}/admin-reject`); load(); };
-  const approveVideo = async (id) => { await api.post(`/tasks/${id}/admin-approve-video`); load(); };
+  const approveProject = async (id) => {
+    playActionFeedback("approve");
+    await api.post(`/tasks/${id}/admin-approve`);
+    load();
+  };
+
+  const rejectProject = async (id) => {
+    playActionFeedback("reject");
+    await api.post(`/tasks/${id}/admin-reject`);
+    load();
+  };
+
+  const approveVideo = async (id) => {
+    playActionFeedback("approve");
+    await api.post(`/tasks/${id}/admin-approve-video`);
+    load();
+  };
 
   return (
     <Layout allowed={["admin"]}>
