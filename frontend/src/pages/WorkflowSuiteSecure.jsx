@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { playActionFeedback } from "../lib/actionFeedback";
 
 const BLUE = "#0051FF";
-const EMPTY = { brandProfiles: [], videoVersions: [], timestampFeedback: [], invoices: [], calendarItems: [], happinessScores: [], projectFinance: [] };
+const EMPTY = { brandProfiles: [], videoVersions: [], timestampFeedback: [], invoices: [], calendarItems: [], happinessScores: [], projectFinance: [], editorPaymentInvoices: [] };
 const PLATFORMS = ["Instagram", "TikTok", "YouTube Shorts", "LinkedIn", "Facebook"];
 const CAL_STATUS = ["Brief Submitted", "Editing", "Internal Review", "Sent to Client", "Revision Requested", "Approved", "Scheduled", "Published"];
 const inputCls = "w-full bg-zinc-950 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500";
@@ -40,6 +40,7 @@ export default function WorkflowSuiteSecure() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [activeTab, setActiveTab] = useState(isEditor ? "review" : "onboarding");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [brandForm, setBrandForm] = useState({ brand_name: "", website_social_links: "", target_audience: "", business_goal: "", video_goal: "", preferred_video_style: "", reference_video_links: "", brand_colors: "", logo_assets_url: "", tone_of_voice: "", competitors: "", platforms_needed: [], number_of_videos_needed: 1, deadline: "", notes: "" });
@@ -47,6 +48,9 @@ export default function WorkflowSuiteSecure() {
   const [happinessForm, setHappinessForm] = useState({ rating: 10, fast_enough: "Yes", clear_communication: "Yes", happy_final: "Yes", work_again: "Yes", feedback: "" });
   const [invoiceForm, setInvoiceForm] = useState({ amount: 0, due_date: "", payment_method: "Bank transfer", notes: "" });
   const [financeForm, setFinanceForm] = useState({ client_payment_amount: 0, editor_cost: 0, extra_expenses: 0 });
+
+  const liveTaskIds = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
+  const keepLiveProjectRecord = (record) => !record.project_id || liveTaskIds.has(record.project_id);
 
   const refresh = async () => {
     try {
@@ -87,6 +91,22 @@ export default function WorkflowSuiteSecure() {
   useEffect(() => {
     if (!tabs.some(([id]) => id === activeTab)) setActiveTab(tabs[0]?.[0] || "review");
   }, [role, activeTab, tabs]);
+
+  const cleanupOrphans = async () => {
+    if (!isAdmin) return;
+    try {
+      setSaving(true);
+      setError("");
+      const { data } = await api.post("/workflow/cleanup-orphans");
+      await refresh();
+      const deletedTotal = Object.values(data?.deleted || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+      setNotice(`Cleaned ${deletedTotal} orphan records from deleted projects.`);
+    } catch (e) {
+      setError(formatApiError(e?.response?.data?.detail || e.message));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const createDoc = async (collection, payload) => {
     setSaving(true);
@@ -150,10 +170,10 @@ export default function WorkflowSuiteSecure() {
     finally { setSaving(false); }
   };
 
-  const visibleProfiles = store.brandProfiles.filter((profile) => isAdmin || profile.client_id === user?.id);
-  const visibleInvoices = store.invoices.filter((invoice) => isAdmin || invoice.client_id === user?.id);
-  const visibleCalendar = store.calendarItems.filter((item) => isAdmin || item.client_id === user?.id || item.editor_id === user?.id);
-  const visibleHappiness = store.happinessScores.filter((score) => isAdmin || score.client_id === user?.id);
+  const visibleProfiles = store.brandProfiles.filter((profile) => (isAdmin || profile.client_id === user?.id) && keepLiveProjectRecord(profile));
+  const visibleInvoices = store.invoices.filter((invoice) => (isAdmin || invoice.client_id === user?.id) && invoice.project_id && liveTaskIds.has(invoice.project_id));
+  const visibleCalendar = store.calendarItems.filter((item) => (isAdmin || item.client_id === user?.id || item.editor_id === user?.id) && item.project_id && liveTaskIds.has(item.project_id));
+  const visibleHappiness = store.happinessScores.filter((score) => (isAdmin || score.client_id === user?.id) && score.project_id && liveTaskIds.has(score.project_id));
 
   const editorMatch = useMemo(() => {
     if (!selectedTask || !isAdmin) return [];
@@ -167,22 +187,26 @@ export default function WorkflowSuiteSecure() {
   }, [editors, selectedTask, isAdmin]);
 
   const profitStats = useMemo(() => {
-    const revenue = store.projectFinance.reduce((s, f) => s + Number(f.client_payment_amount || 0), 0);
-    const editorCost = store.projectFinance.reduce((s, f) => s + Number(f.editor_cost || 0), 0);
-    const expenses = store.projectFinance.reduce((s, f) => s + Number(f.extra_expenses || 0), 0);
+    const liveFinance = store.projectFinance.filter((f) => f.project_id && liveTaskIds.has(f.project_id));
+    const liveInvoices = store.invoices.filter((i) => i.project_id && liveTaskIds.has(i.project_id));
+    const revenue = liveFinance.reduce((s, f) => s + Number(f.client_payment_amount || 0), 0);
+    const editorCost = liveFinance.reduce((s, f) => s + Number(f.editor_cost || 0), 0);
+    const expenses = liveFinance.reduce((s, f) => s + Number(f.extra_expenses || 0), 0);
     const profit = revenue - editorCost - expenses;
-    const pending = store.invoices.filter((i) => i.status !== "Paid").reduce((s, i) => s + Number(i.amount || 0), 0);
-    const overdue = store.invoices.filter((i) => i.status === "Overdue" || isOverdue(i.due_date, i.status)).reduce((s, i) => s + Number(i.amount || 0), 0);
+    const pending = liveInvoices.filter((i) => i.status !== "Paid").reduce((s, i) => s + Number(i.amount || 0), 0);
+    const overdue = liveInvoices.filter((i) => i.status === "Overdue" || isOverdue(i.due_date, i.status)).reduce((s, i) => s + Number(i.amount || 0), 0);
     return { revenue, editorCost, profit, pending, overdue, margin: revenue ? (profit / revenue) * 100 : 0 };
-  }, [store]);
+  }, [store, liveTaskIds]);
 
   const happinessAvg = visibleHappiness.length ? visibleHappiness.reduce((s, h) => s + Number(h.rating || 0), 0) / visibleHappiness.length : 0;
 
   if (loading) return <Layout allowed={[role]}><div className="text-sm text-zinc-500">Loading secured workflow suite…</div></Layout>;
 
   return <Layout allowed={[role]}>
-    <PageHeader label={`${role} / Workflow Suite`} title="Motionholic Workflow Suite" subtitle="Role-safe workflow: editors cannot view brand profiles, and real editor names are admin-only." />
+    <PageHeader label={`${role} / Workflow Suite`} title="Motionholic Workflow Suite" subtitle="Role-safe workflow: deleted project records are hidden and can be cleaned by Admin." />
     {error && <div className="mb-4 border border-red-500/20 bg-red-500/10 text-red-300 rounded-md px-4 py-3 text-sm">{error}</div>}
+    {notice && <div className="mb-4 border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 rounded-md px-4 py-3 text-sm">{notice}</div>}
+    {isAdmin && <div className="mb-4 flex justify-end"><button onClick={cleanupOrphans} disabled={saving} className="px-4 py-2 rounded-md border border-white/10 text-sm hover:bg-white/5 disabled:opacity-50">Clean deleted project history</button></div>}
     <div className="grid lg:grid-cols-[280px,1fr] gap-5">
       <aside className="space-y-4">
         <Panel title="Project Context" subtitle="Role-safe MongoDB scope">
@@ -223,7 +247,7 @@ export default function WorkflowSuiteSecure() {
 
         {activeTab === "matching" && isAdmin && <Panel title="Editor Skill Matching" subtitle="Admin-only. Real editor names are visible only here.">{editorMatch.length === 0 ? <Empty title="No editors found" /> : <div className="grid md:grid-cols-3 gap-4">{editorMatch.slice(0, 3).map(({ editor, score, reason }, index) => <div key={editor.id} className="border border-white/10 rounded-xl p-4 bg-black/20"><div className="flex justify-between items-start"><div><div className="text-xs text-zinc-500">Recommendation #{index + 1}</div><div className="font-semibold mt-1">{editorPrivateName(editor, true)}</div><div className="text-xs text-zinc-600 mt-1">Admin-only identity view</div></div><div className="text-2xl font-mono text-blue-400">{score}%</div></div><p className="text-sm text-zinc-400 mt-3">{score}% match because this editor is {reason}.</p><div className="flex flex-wrap gap-1 mt-3">{(editor.skills || []).slice(0, 5).map((skill) => <Badge key={skill}>{skill}</Badge>)}</div><button disabled={saving} onClick={() => assignEditor(editor.id)} className="w-full mt-4 py-2 rounded-md bg-white text-black text-sm font-medium disabled:opacity-50">Assign Editor</button></div>)}</div>}</Panel>}
 
-        {activeTab === "calendar" && <div className="grid lg:grid-cols-[1fr,360px] gap-5"><Panel title="Content Calendar" subtitle="Editors see assigned deadlines without client brand profiles.">{visibleCalendar.length === 0 ? <Empty title="No calendar items yet" /> : visibleCalendar.map((item) => <div key={item.id} className="border border-white/10 rounded-lg p-4 mb-3 bg-black/20"><div className="flex justify-between gap-3"><div><div className="font-semibold">{item.video_title}</div><div className="text-xs text-zinc-500">{item.project_name} · {item.platform} · {item.due_date || "No date"}</div></div><Badge tone={badgeTone(item.status)}>{item.status}</Badge></div></div>)}</Panel>{(isAdmin || isClient) && <Panel title="Create Calendar Item"><div className="space-y-3"><Field label="Video title"><input className={inputCls} value={calendarForm.video_title} onChange={(e) => setCalendarForm({ ...calendarForm, video_title: e.target.value })} /></Field><Field label="Platform"><select className={inputCls} value={calendarForm.platform} onChange={(e) => setCalendarForm({ ...calendarForm, platform: e.target.value })}>{PLATFORMS.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Due date"><input type="date" className={inputCls} value={calendarForm.due_date} onChange={(e) => setCalendarForm({ ...calendarForm, due_date: e.target.value })} /></Field><Field label="Status"><select className={inputCls} value={calendarForm.status} onChange={(e) => setCalendarForm({ ...calendarForm, status: e.target.value })}>{CAL_STATUS.map((s) => <option key={s}>{s}</option>)}</select></Field><button onClick={createCalendarItem} disabled={saving} className="w-full py-2 rounded-md text-white disabled:opacity-50" style={{ background: BLUE }}>Add to Calendar</button></div></Panel>}</div>}
+        {activeTab === "calendar" && <div className="grid lg:grid-cols-[1fr,360px] gap-5"><Panel title="Content Calendar" subtitle="Only active project calendar items are shown.">{visibleCalendar.length === 0 ? <Empty title="No calendar items yet" /> : visibleCalendar.map((item) => <div key={item.id} className="border border-white/10 rounded-lg p-4 mb-3 bg-black/20"><div className="flex justify-between gap-3"><div><div className="font-semibold">{item.video_title}</div><div className="text-xs text-zinc-500">{item.project_name} · {item.platform} · {item.due_date || "No date"}</div></div><Badge tone={badgeTone(item.status)}>{item.status}</Badge></div></div>)}</Panel>{(isAdmin || isClient) && <Panel title="Create Calendar Item"><div className="space-y-3"><Field label="Video title"><input className={inputCls} value={calendarForm.video_title} onChange={(e) => setCalendarForm({ ...calendarForm, video_title: e.target.value })} /></Field><Field label="Platform"><select className={inputCls} value={calendarForm.platform} onChange={(e) => setCalendarForm({ ...calendarForm, platform: e.target.value })}>{PLATFORMS.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Due date"><input type="date" className={inputCls} value={calendarForm.due_date} onChange={(e) => setCalendarForm({ ...calendarForm, due_date: e.target.value })} /></Field><Field label="Status"><select className={inputCls} value={calendarForm.status} onChange={(e) => setCalendarForm({ ...calendarForm, status: e.target.value })}>{CAL_STATUS.map((s) => <option key={s}>{s}</option>)}</select></Field><button onClick={createCalendarItem} disabled={saving} className="w-full py-2 rounded-md text-white disabled:opacity-50" style={{ background: BLUE }}>Add to Calendar</button></div></Panel>}</div>}
 
         {activeTab === "happiness" && <div className="grid lg:grid-cols-[1fr,360px] gap-5"><Panel title="Client Happiness Score"><div className="grid md:grid-cols-3 gap-4 mb-5"><MetricCard label="Average Score" value={happinessAvg ? `${happinessAvg.toFixed(1)}/10` : "—"} /><MetricCard label="Feedback Count" value={visibleHappiness.length} /><MetricCard label="Needs Attention" value={visibleHappiness.filter((h) => h.needs_attention).length} tone="bad" /></div>{visibleHappiness.length === 0 ? <Empty title="No client feedback yet" /> : visibleHappiness.map((h) => <div key={h.id} className="border border-white/10 rounded-lg p-4 mb-3"><div className="flex justify-between"><div className="font-semibold">{projectName(tasks, h.project_id)}</div><Badge tone={h.needs_attention ? "bad" : "good"}>{h.needs_attention ? "Needs Attention" : "Positive"}</Badge></div><div className="text-2xl font-mono text-blue-400 mt-2">{h.rating}/10</div><p className="text-sm text-zinc-400 mt-2">{h.feedback}</p></div>)}</Panel>{isClient && <Panel title="Submit Feedback"><div className="space-y-3"><Field label="Rating 1–10"><input type="number" min="1" max="10" className={inputCls} value={happinessForm.rating} onChange={(e) => setHappinessForm({ ...happinessForm, rating: e.target.value })} /></Field>{["fast_enough", "clear_communication", "happy_final", "work_again"].map((key) => <Field key={key} label={key.replaceAll("_", " ")}><select className={inputCls} value={happinessForm[key]} onChange={(e) => setHappinessForm({ ...happinessForm, [key]: e.target.value })}><option>Yes</option><option>No</option><option>Somewhat</option></select></Field>)}<Field label="Written feedback / testimonial"><textarea className={textAreaCls} value={happinessForm.feedback} onChange={(e) => setHappinessForm({ ...happinessForm, feedback: e.target.value })} /></Field><button onClick={submitHappiness} disabled={saving} className="w-full py-2 rounded-md text-white disabled:opacity-50" style={{ background: BLUE }}>Submit Score</button></div></Panel>}</div>}
 
