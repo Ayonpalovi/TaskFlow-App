@@ -125,6 +125,71 @@
     transform: translateX(1px);
 }
 
+[data-testid="kanban-column-available"] {
+    border-color: rgba(59, 130, 246, 0.24) !important;
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.085), rgba(24, 24, 27, 0.45)) !important;
+}
+
+[data-testid="kanban-column-active"] {
+    border-color: rgba(34, 197, 94, 0.26) !important;
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.085), rgba(24, 24, 27, 0.45)) !important;
+}
+
+[data-testid="kanban-column-submitted"] {
+    border-color: rgba(245, 158, 11, 0.34) !important;
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.11), rgba(24, 24, 27, 0.45)) !important;
+}
+
+[data-testid="kanban-column-client_review"] {
+    border-color: rgba(168, 85, 247, 0.30) !important;
+    background: linear-gradient(180deg, rgba(168, 85, 247, 0.10), rgba(24, 24, 27, 0.45)) !important;
+}
+
+[data-testid="kanban-column-revision"] {
+    border-color: rgba(239, 68, 68, 0.32) !important;
+    background: linear-gradient(180deg, rgba(239, 68, 68, 0.105), rgba(24, 24, 27, 0.45)) !important;
+}
+
+[data-testid="kanban-column-completed"] {
+    border-color: rgba(20, 184, 166, 0.30) !important;
+    background: linear-gradient(180deg, rgba(20, 184, 166, 0.095), rgba(24, 24, 27, 0.45)) !important;
+}
+
+[data-testid^="kanban-column-"] {
+    position: relative;
+    overflow: hidden;
+}
+
+[data-testid^="kanban-column-"]::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    opacity: 0.9;
+}
+
+[data-testid="kanban-column-available"]::before { background: #3B82F6; }
+[data-testid="kanban-column-active"]::before { background: #22C55E; }
+[data-testid="kanban-column-submitted"]::before { background: #F59E0B; }
+[data-testid="kanban-column-client_review"]::before { background: #A855F7; }
+[data-testid="kanban-column-revision"]::before { background: #EF4444; }
+[data-testid="kanban-column-completed"]::before { background: #14B8A6; }
+
+[data-testid^="kanban-column-"] .label-xs {
+    color: rgba(244, 244, 245, 0.74);
+}
+
+[data-testid="kanban-column-available"] .label-xs { color: #93C5FD; }
+[data-testid="kanban-column-active"] .label-xs { color: #86EFAC; }
+[data-testid="kanban-column-submitted"] .label-xs { color: #FCD34D; }
+[data-testid="kanban-column-client_review"] .label-xs { color: #D8B4FE; }
+[data-testid="kanban-column-revision"] .label-xs { color: #FCA5A5; }
+[data-testid="kanban-column-completed"] .label-xs { color: #5EEAD4; }
+
+[data-testid^="kanban-column-"]:hover {
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.20);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .mh-saas-motion main > div,
     .mh-saas-motion main > div > *,
