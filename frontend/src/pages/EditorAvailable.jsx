@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
 import { api, formatApiError } from "../lib/api";
+import { playActionFeedback } from "../lib/actionFeedback";
 
 export default function EditorAvailable() {
   const [items, setItems] = useState([]);
@@ -15,6 +16,7 @@ export default function EditorAvailable() {
   const request = async (id) => {
     setMsg("");
     try {
+      playActionFeedback("request");
       await api.post(`/tasks/${id}/request`);
       setMsg("Request submitted. Expires in 12 hours.");
       load();
