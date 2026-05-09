@@ -8,6 +8,15 @@ const inputClass =
 const textareaClass =
   "w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20";
 
+const columns = [
+  { key: "available", label: "Available", empty: "No available projects" },
+  { key: "active", label: "Active", empty: "No active projects" },
+  { key: "submitted", label: "Awaiting Admin", empty: "No drafts awaiting admin" },
+  { key: "client_review", label: "Client Review", empty: "No projects with client" },
+  { key: "revision", label: "Revision", empty: "No revisions" },
+  { key: "completed", label: "Completed", empty: "No completed projects" },
+];
+
 function InfoRow({ label, value }) {
   return (
     <div>
@@ -37,6 +46,14 @@ function LinkRow({ label, url }) {
   );
 }
 
+function statusTone(status) {
+  if (status === "revision") return "bad";
+  if (status === "completed") return "good";
+  if (status === "submitted" || status === "client_review") return "warn";
+  if (status === "active") return "blue";
+  return "default";
+}
+
 function ProjectCard({ task, onOpen }) {
   return (
     <div
@@ -62,21 +79,7 @@ function ProjectCard({ task, onOpen }) {
 
       <div className="flex gap-1.5 flex-wrap mb-3">
         <Badge>{task.project_type}</Badge>
-
-        <Badge
-          tone={
-            task.status === "revision"
-              ? "bad"
-              : task.status === "completed"
-                ? "good"
-                : task.status === "submitted" || task.status === "client_review"
-                  ? "warn"
-                  : "default"
-          }
-        >
-          {task.status}
-        </Badge>
-
+        <Badge tone={statusTone(task.status)}>{task.status}</Badge>
         {(task.revisions || []).length > 0 && (
           <Badge tone="bad">↻ {task.revisions.length}</Badge>
         )}
@@ -120,9 +123,7 @@ export default function EditorProjects() {
   const openDetail = async (task) => {
     try {
       setErr("");
-
       const { data } = await api.get(`/tasks/${task.id}`);
-
       setDetail(data);
       setDraftUrl("");
       setDraftNote("");
@@ -150,11 +151,9 @@ export default function EditorProjects() {
       });
 
       const { data } = await api.get(`/tasks/${detail.id}`);
-
       setDetail(data);
       setDraftUrl("");
       setDraftNote("");
-
       await load();
     } catch (e) {
       setErr(formatApiError(e?.response?.data?.detail) || "Failed to submit draft.");
@@ -162,13 +161,6 @@ export default function EditorProjects() {
       setSubmitting(false);
     }
   };
-
-  const activeTasks = tasks.filter((task) => task.status === "active");
-  const revisionTasks = tasks.filter((task) => task.status === "revision");
-  const reviewTasks = tasks.filter(
-    (task) => task.status === "submitted" || task.status === "client_review"
-  );
-  const completedTasks = tasks.filter((task) => task.status === "completed");
 
   if (detail) {
     return (
@@ -180,7 +172,7 @@ export default function EditorProjects() {
                 onClick={goBack}
                 className="text-sm text-zinc-400 hover:text-white mb-5"
               >
-                ← Back to My Projects
+                ← Back to Synced Pipeline
               </button>
 
               <div className="label-xs text-zinc-500 mb-2">
@@ -213,7 +205,13 @@ export default function EditorProjects() {
           <div className="grid xl:grid-cols-3 gap-6">
             <section className="xl:col-span-2 space-y-6">
               <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
-                <h2 className="text-lg font-semibold mb-5">Project Details</h2>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div>
+                    <h2 className="text-lg font-semibold">Project Details</h2>
+                    <p className="text-xs text-zinc-500 mt-1">Pipeline status is synced with Admin. Editors can view only; Admin controls movement.</p>
+                  </div>
+                  <Badge tone={statusTone(detail.status)}>{detail.status}</Badge>
+                </div>
 
                 <div className="grid md:grid-cols-2 gap-4 text-sm">
                   <InfoRow label="Project Type" value={detail.project_type} />
@@ -262,7 +260,6 @@ export default function EditorProjects() {
 
               <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
                 <h2 className="text-lg font-semibold mb-5">Assets</h2>
-
                 <div className="space-y-3 text-sm">
                   <LinkRow label="Footages URL" url={detail.footages_url} />
                   <LinkRow label="Script URL" url={detail.script_url} />
@@ -275,23 +272,11 @@ export default function EditorProjects() {
                 {(detail.drafts || []).length > 0 ? (
                   <div className="space-y-3">
                     {(detail.drafts || []).map((draft) => (
-                      <div
-                        key={draft.id}
-                        className="border border-white/10 rounded-md p-4 text-sm"
-                      >
-                        <a
-                          href={draft.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-blue-400 hover:underline break-all"
-                        >
+                      <div key={draft.id} className="border border-white/10 rounded-md p-4 text-sm">
+                        <a href={draft.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline break-all">
                           {draft.url}
                         </a>
-
-                        {draft.note && (
-                          <div className="text-zinc-400 mt-2">{draft.note}</div>
-                        )}
-
+                        {draft.note && <div className="text-zinc-400 mt-2">{draft.note}</div>}
                         <div className="text-xs text-zinc-600 mt-2 font-mono">
                           Uploaded {draft.uploaded_at?.slice(0, 10)}
                         </div>
@@ -305,17 +290,10 @@ export default function EditorProjects() {
 
               {(detail.revisions || []).length > 0 && (
                 <div className="border border-red-500/20 rounded-xl bg-red-500/5 p-6">
-                  <h2 className="text-lg font-semibold mb-5 text-red-400">
-                    Revision Requests
-                  </h2>
-
+                  <h2 className="text-lg font-semibold mb-5 text-red-400">Revision Requests</h2>
                   {(detail.revisions || []).map((revision) => (
-                    <div
-                      key={revision.id}
-                      className="border border-red-500/20 rounded-md p-4 mb-3 text-sm text-red-200"
-                    >
+                    <div key={revision.id} className="border border-red-500/20 rounded-md p-4 mb-3 text-sm text-red-200">
                       {revision.note}
-
                       <div className="text-xs text-red-300/60 mt-2 font-mono">
                         {revision.created_at?.slice(0, 10)}
                       </div>
@@ -328,32 +306,13 @@ export default function EditorProjects() {
             <aside className="space-y-6">
               {detail.status !== "completed" && (
                 <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
-                  <h2 className="text-lg font-semibold mb-5">Submit Draft</h2>
+                  <h2 className="text-lg font-semibold mb-2">Submit Draft</h2>
+                  <p className="text-xs text-zinc-500 mb-5">Submitting a draft sends it to Admin review. The board stage updates after Admin action.</p>
 
                   <div className="space-y-3">
-                    <input
-                      data-testid="draft-url-input"
-                      className={inputClass}
-                      value={draftUrl}
-                      onChange={(e) => setDraftUrl(e.target.value)}
-                      placeholder="Draft URL"
-                    />
-
-                    <textarea
-                      data-testid="draft-note-input"
-                      rows={4}
-                      className={textareaClass}
-                      value={draftNote}
-                      onChange={(e) => setDraftNote(e.target.value)}
-                      placeholder="Notes for admin/client..."
-                    />
-
-                    <button
-                      data-testid="submit-draft-button"
-                      onClick={submitDraft}
-                      disabled={submitting || !draftUrl.trim()}
-                      className="w-full bg-white text-black rounded-md py-3 text-sm font-medium hover:bg-zinc-200 disabled:opacity-50"
-                    >
+                    <input data-testid="draft-url-input" className={inputClass} value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} placeholder="Draft URL" />
+                    <textarea data-testid="draft-note-input" rows={4} className={textareaClass} value={draftNote} onChange={(e) => setDraftNote(e.target.value)} placeholder="Notes for admin/client..." />
+                    <button data-testid="submit-draft-button" onClick={submitDraft} disabled={submitting || !draftUrl.trim()} className="w-full bg-white text-black rounded-md py-3 text-sm font-medium hover:bg-zinc-200 disabled:opacity-50">
                       {submitting ? "Submitting..." : "Submit Draft"}
                     </button>
                   </div>
@@ -361,28 +320,14 @@ export default function EditorProjects() {
               )}
 
               <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
-                <h2 className="text-lg font-semibold mb-5">Quick Status</h2>
-
+                <h2 className="text-lg font-semibold mb-5">Read-only Pipeline</h2>
                 <div className="space-y-3 text-sm">
                   <InfoRow label="Current Status" value={detail.status} />
                   <InfoRow label="Priority" value={detail.priority} />
                   <InfoRow label="Deadline" value={detail.deadline?.slice(0, 10)} />
                   <InfoRow label="Draft Count" value={(detail.drafts || []).length} />
-                  <InfoRow
-                    label="Revision Count"
-                    value={(detail.revisions || []).length}
-                  />
+                  <InfoRow label="Revision Count" value={(detail.revisions || []).length} />
                 </div>
-              </div>
-
-              <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-6">
-                <h2 className="text-lg font-semibold mb-3">Editor Reminder</h2>
-
-                <p className="text-sm text-zinc-400 leading-relaxed">
-                  Check the assets, script URL, creative brief, references, and
-                  notes before editing. Submit the final draft link here when the
-                  video is ready.
-                </p>
               </div>
             </aside>
           </div>
@@ -394,9 +339,9 @@ export default function EditorProjects() {
   return (
     <Layout allowed={["editor"]}>
       <PageHeader
-        label="Editor / Projects"
+        label="Editor / Synced Pipeline"
         title="My Projects"
-        subtitle="Open a project to view the full brief, assets, revisions, and submit drafts."
+        subtitle="Synced with the Admin project pipeline. Editors can view project stages, but only Admin can move cards."
       />
 
       {err && (
@@ -405,90 +350,39 @@ export default function EditorProjects() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="label-xs text-zinc-400">Active</div>
-            <span className="font-mono text-xs text-zinc-500">
-              {activeTasks.length}
-            </span>
-          </div>
+      <div className="mb-4 text-xs text-zinc-500 border border-white/10 rounded-md bg-zinc-900/30 px-4 py-3">
+        Read-only view: stage changes are controlled from the Admin Tasks pipeline.
+      </div>
 
-          <div className="space-y-3 min-h-[120px]">
-            {activeTasks.map((task) => (
-              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
-            ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
+        {columns.map((column) => {
+          const items = tasks.filter((task) => task.status === column.key);
 
-            {activeTasks.length === 0 && (
-              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
-                Empty
+          return (
+            <section
+              key={column.key}
+              className="border border-white/10 rounded-md bg-zinc-900/30 p-4"
+              data-testid={`kanban-column-${column.key}`}
+            >
+              <div className="flex items-center justify-between mb-3 px-1">
+                <div className="label-xs text-zinc-400">{column.label}</div>
+                <span className="font-mono text-xs text-zinc-500">{items.length}</span>
               </div>
-            )}
-          </div>
-        </section>
 
-        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="label-xs text-zinc-400">Revision</div>
-            <span className="font-mono text-xs text-zinc-500">
-              {revisionTasks.length}
-            </span>
-          </div>
+              <div className="space-y-3 min-h-[120px]">
+                {items.map((task) => (
+                  <ProjectCard key={task.id} task={task} onOpen={openDetail} />
+                ))}
 
-          <div className="space-y-3 min-h-[120px]">
-            {revisionTasks.map((task) => (
-              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
-            ))}
-
-            {revisionTasks.length === 0 && (
-              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
-                Empty
+                {items.length === 0 && (
+                  <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
+                    {column.empty}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </section>
-
-        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="label-xs text-zinc-400">In Review</div>
-            <span className="font-mono text-xs text-zinc-500">
-              {reviewTasks.length}
-            </span>
-          </div>
-
-          <div className="space-y-3 min-h-[120px]">
-            {reviewTasks.map((task) => (
-              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
-            ))}
-
-            {reviewTasks.length === 0 && (
-              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
-                Empty
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="border border-white/10 rounded-md bg-zinc-900/30 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="label-xs text-zinc-400">Completed</div>
-            <span className="font-mono text-xs text-zinc-500">
-              {completedTasks.length}
-            </span>
-          </div>
-
-          <div className="space-y-3 min-h-[120px]">
-            {completedTasks.map((task) => (
-              <ProjectCard key={task.id} task={task} onOpen={openDetail} />
-            ))}
-
-            {completedTasks.length === 0 && (
-              <div className="text-xs text-zinc-600 p-3 text-center border border-dashed border-white/5 rounded-md">
-                Empty
-              </div>
-            )}
-          </div>
-        </section>
+            </section>
+          );
+        })}
       </div>
     </Layout>
   );
