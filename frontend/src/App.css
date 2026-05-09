@@ -7,13 +7,20 @@
 @keyframes mhFadeUp {
     from {
         opacity: 0;
-        transform: translateY(18px) scale(0.985);
-        filter: blur(4px);
+        transform: translateY(12px) scale(0.992);
     }
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
-        filter: blur(0);
+    }
+}
+
+@keyframes mhFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
     }
 }
 
@@ -22,93 +29,123 @@
         box-shadow: 0 0 0 rgba(0, 81, 255, 0);
     }
     50% {
-        box-shadow: 0 0 28px rgba(0, 81, 255, 0.12);
+        box-shadow: 0 0 22px rgba(0, 81, 255, 0.10);
     }
 }
 
 @keyframes mhProgressShimmer {
     0% {
-        background-position: 200% 0;
+        background-position: 180% 0;
     }
     100% {
-        background-position: -200% 0;
+        background-position: -180% 0;
     }
 }
 
-.mh-dashboard-motion main > div > * {
-    animation: mhFadeUp 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.mh-saas-motion main > div {
+    animation: mhFadeIn 220ms ease-out both;
 }
 
-.mh-dashboard-motion main > div > *:nth-child(1) { animation-delay: 30ms; }
-.mh-dashboard-motion main > div > *:nth-child(2) { animation-delay: 90ms; }
-.mh-dashboard-motion main > div > *:nth-child(3) { animation-delay: 150ms; }
-.mh-dashboard-motion main > div > *:nth-child(4) { animation-delay: 210ms; }
-.mh-dashboard-motion main > div > *:nth-child(5) { animation-delay: 270ms; }
-.mh-dashboard-motion main > div > *:nth-child(6) { animation-delay: 330ms; }
-.mh-dashboard-motion main > div > *:nth-child(7) { animation-delay: 390ms; }
-.mh-dashboard-motion main > div > *:nth-child(8) { animation-delay: 450ms; }
-
-.mh-dashboard-motion main [class*="border-white/10"][class*="bg-zinc-900/30"],
-.mh-dashboard-motion main .card-hover {
-    transition: transform 260ms ease, border-color 260ms ease, box-shadow 260ms ease, background-color 260ms ease;
+.mh-saas-motion main > div > * {
+    animation: mhFadeUp 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.mh-dashboard-motion main [class*="border-white/10"][class*="bg-zinc-900/30"]:hover,
-.mh-dashboard-motion main .card-hover:hover {
-    transform: translateY(-3px);
-    border-color: rgba(0, 81, 255, 0.35);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22), 0 0 26px rgba(0, 81, 255, 0.08);
+.mh-saas-motion main > div > *:nth-child(1) { animation-delay: 20ms; }
+.mh-saas-motion main > div > *:nth-child(2) { animation-delay: 45ms; }
+.mh-saas-motion main > div > *:nth-child(3) { animation-delay: 70ms; }
+.mh-saas-motion main > div > *:nth-child(4) { animation-delay: 95ms; }
+.mh-saas-motion main > div > *:nth-child(5) { animation-delay: 120ms; }
+.mh-saas-motion main > div > *:nth-child(6) { animation-delay: 145ms; }
+.mh-saas-motion main > div > *:nth-child(7) { animation-delay: 170ms; }
+.mh-saas-motion main > div > *:nth-child(8) { animation-delay: 195ms; }
+
+.mh-saas-motion main [class*="border-white/10"],
+.mh-saas-motion main .card-hover,
+.mh-saas-motion main input,
+.mh-saas-motion main textarea,
+.mh-saas-motion main select {
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, opacity 180ms ease;
 }
 
-.mh-dashboard-motion main button,
-.mh-dashboard-motion main a {
-    transition: transform 180ms ease, opacity 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+.mh-saas-motion main [class*="border-white/10"][class*="bg-zinc-900/30"]:hover,
+.mh-saas-motion main .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0, 81, 255, 0.26);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18), 0 0 18px rgba(0, 81, 255, 0.055);
 }
 
-.mh-dashboard-motion main button:hover,
-.mh-dashboard-motion main a:hover {
+.mh-saas-motion main input:focus,
+.mh-saas-motion main textarea:focus,
+.mh-saas-motion main select:focus {
+    border-color: rgba(0, 81, 255, 0.42);
+    box-shadow: 0 0 0 3px rgba(0, 81, 255, 0.08);
+}
+
+.mh-saas-motion main button,
+.mh-saas-motion main a {
+    transition: transform 150ms ease, opacity 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.mh-saas-motion main button:hover,
+.mh-saas-motion main a:hover {
     transform: translateY(-1px);
 }
 
-.mh-dashboard-motion main button:active {
-    transform: translateY(0) scale(0.98);
+.mh-saas-motion main button:active {
+    transform: translateY(0) scale(0.99);
 }
 
 .mh-dashboard-motion [data-testid="mvp-card"],
 .mh-dashboard-motion [data-testid="mvp-self-card"],
 .mh-dashboard-motion [data-testid="xp-banner"] {
-    animation: mhFadeUp 620ms cubic-bezier(0.22, 1, 0.36, 1) both, mhSoftGlow 3.8s ease-in-out infinite;
+    animation: mhFadeUp 420ms cubic-bezier(0.22, 1, 0.36, 1) both, mhSoftGlow 4.5s ease-in-out infinite;
 }
 
 .mh-dashboard-motion [data-testid="xp-banner"] .bg-gradient-to-r,
 .mh-dashboard-motion [data-testid="workload-panel"] .h-full,
 .mh-dashboard-motion .h-full.bg-gradient-to-r {
-    background-size: 200% 100%;
-    animation: mhProgressShimmer 4s linear infinite;
+    background-size: 180% 100%;
+    animation: mhProgressShimmer 5.5s linear infinite;
 }
 
-.mh-dashboard-motion .recharts-wrapper {
-    animation: mhFadeUp 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    animation-delay: 220ms;
+.mh-saas-motion .recharts-wrapper {
+    animation: mhFadeUp 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 90ms;
+}
+
+.mh-saas-motion aside nav a,
+.mh-saas-motion aside button,
+.mh-saas-motion header button {
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.mh-saas-motion aside nav a:hover,
+.mh-saas-motion aside button:hover,
+.mh-saas-motion header button:hover {
+    transform: translateX(1px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .mh-dashboard-motion main > div > *,
+    .mh-saas-motion main > div,
+    .mh-saas-motion main > div > *,
     .mh-dashboard-motion [data-testid="mvp-card"],
     .mh-dashboard-motion [data-testid="mvp-self-card"],
     .mh-dashboard-motion [data-testid="xp-banner"],
-    .mh-dashboard-motion .recharts-wrapper,
     .mh-dashboard-motion [data-testid="xp-banner"] .bg-gradient-to-r,
     .mh-dashboard-motion [data-testid="workload-panel"] .h-full,
-    .mh-dashboard-motion .h-full.bg-gradient-to-r {
+    .mh-dashboard-motion .h-full.bg-gradient-to-r,
+    .mh-saas-motion .recharts-wrapper {
         animation: none !important;
     }
 
-    .mh-dashboard-motion main [class*="border-white/10"][class*="bg-zinc-900/30"]:hover,
-    .mh-dashboard-motion main .card-hover:hover,
-    .mh-dashboard-motion main button:hover,
-    .mh-dashboard-motion main a:hover,
-    .mh-dashboard-motion main button:active {
+    .mh-saas-motion main [class*="border-white/10"][class*="bg-zinc-900/30"]:hover,
+    .mh-saas-motion main .card-hover:hover,
+    .mh-saas-motion main button:hover,
+    .mh-saas-motion main a:hover,
+    .mh-saas-motion main button:active,
+    .mh-saas-motion aside nav a:hover,
+    .mh-saas-motion aside button:hover,
+    .mh-saas-motion header button:hover {
         transform: none !important;
     }
 }
