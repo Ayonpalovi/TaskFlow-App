@@ -27,12 +27,18 @@ def _attach_workflow_router(app):
         if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
             return
 
-        from workflow_api import build_workflow_router
+        from workflow_api import build_task_compat_router, build_workflow_router
 
         workflow_router = build_workflow_router(server)
+        task_compat_router = build_task_compat_router(server)
         existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
+
         if "/api/workflow/state" not in existing_paths:
             _original_include_router(app, workflow_router)
+
+        if "/api/tasks/{task_id}" not in existing_paths:
+            _original_include_router(app, task_compat_router)
+
         _attached = True
     except Exception:
         # Keep the original API alive even if the workflow extension cannot load.

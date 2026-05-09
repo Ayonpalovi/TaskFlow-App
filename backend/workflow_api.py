@@ -135,6 +135,47 @@ async def collection_items(server, user: dict, collection_name: str):
     return [clean(x) for x in await coll.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)]
 
 
+def build_task_compat_router(server):
+    router = APIRouter(prefix="/api", tags=["workflow-task-compat"])
+
+    @router.patch("/tasks/{task_id}")
+    async def workflow_assign_task(task_id: str, payload: dict, user: dict = Depends(server.get_current_user)):
+        if user["role"] != "admin":
+            raise HTTPException(403, "Admin only")
+
+        editor_id = payload.get("assigned_editor_id") or payload.get("editor_id")
+        if not editor_id:
+            raise HTTPException(400, "assigned_editor_id is required")
+
+        current_task = await server.db.tasks.find_one({"id": task_id}, {"_id": 0})
+        if not current_task:
+            raise HTTPException(404, "Task not found")
+
+        editor = await server.db.users.find_one({"id": editor_id, "role": "editor"}, {"_id": 0})
+        if not editor:
+            raise HTTPException(404, "Editor not found")
+
+        update = {
+            "assigned_editor_id": editor_id,
+            "editor_id": editor_id,
+            "status": payload.get("status") or "active",
+            "updated_at": now_iso(),
+        }
+
+        await server.db.tasks.update_one({"id": task_id}, {"$set": update})
+
+        if hasattr(server.db, "requests"):
+            await server.db.requests.update_many(
+                {"task_id": task_id, "status": "pending"},
+                {"$set": {"status": "closed", "updated_at": now_iso()}},
+            )
+
+        updated = await server.db.tasks.find_one({"id": task_id}, {"_id": 0})
+        return clean(updated)
+
+    return router
+
+
 def build_workflow_router(server):
     router = APIRouter(prefix="/api/workflow", tags=["workflow-suite"])
 
