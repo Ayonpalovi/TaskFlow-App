@@ -84,10 +84,9 @@ async def can_access_doc(server, user: dict, collection_name: str, doc: dict) ->
     if user["role"] == "admin":
         return True
     if collection_name == "brandProfiles":
-        if user["role"] == "client":
-            return doc.get("client_id") == user["id"]
-        _, client_ids = await visible_scope(server, user)
-        return doc.get("client_id") in client_ids
+        if user["role"] == "editor":
+            return False
+        return doc.get("client_id") == user["id"]
     if doc.get("project_id"):
         return await can_read_project(server, user, doc.get("project_id"))
     if doc.get("client_id"):
@@ -116,13 +115,16 @@ def can_patch(user: dict, collection_name: str) -> bool:
 
 
 async def collection_items(server, user: dict, collection_name: str):
+    if collection_name == "brandProfiles" and user["role"] == "editor":
+        return []
+
     coll = collection(server, collection_name)
     if user["role"] == "admin":
         return [clean(x) for x in await coll.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
 
     task_ids, client_ids = await visible_scope(server, user)
     if collection_name == "brandProfiles":
-        query = {"client_id": user["id"]} if user["role"] == "client" else {"client_id": {"$in": list(client_ids)}}
+        query = {"client_id": user["id"]}
     else:
         ors = []
         if task_ids:
