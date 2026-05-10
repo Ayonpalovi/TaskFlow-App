@@ -62,6 +62,7 @@ export default function AdminDashboard() {
   const [satisfaction, setSatisfaction] = useState(null);
   const [revisions, setRevisions] = useState(null);
   const [mvp, setMvp] = useState(null);
+  const [selectedEditorId, setSelectedEditorId] = useState("");
 
   const load = async () => {
     const [s, tr, t, r, dr, wl, sa, rv, m] = await Promise.all([
@@ -84,7 +85,7 @@ export default function AdminDashboard() {
     const satisfactionMap = new Map((satisfaction?.editors || []).map((item) => [item.user.id, item]));
     const revisionMap = new Map((revisions?.editors || []).map((item) => [item.user.id, item]));
 
-    return workload.slice(0, 6).map((item) => {
+    return workload.map((item) => {
       const editorId = item.editor.id;
       const sat = satisfactionMap.get(editorId);
       const rev = revisionMap.get(editorId);
@@ -95,27 +96,44 @@ export default function AdminDashboard() {
       const overall = Math.round((loadScore + ratingScore + deliveryScore + revisionScore) / 4);
 
       return {
+        id: editorId,
         editor: item.editor.anime_name,
         workload: loadScore,
         rating: ratingScore,
         output: deliveryScore,
         revision: revisionScore,
         overall,
+        activeTasks: item.total || 0,
+        loadPct: item.load_pct || 0,
+        avgRating: sat?.avg_rating || 0,
+        reviewCount: sat?.review_count || 0,
+        revisionCount: rev?.revision_count || 0,
+        status: item.status,
       };
-    });
+    }).sort((a, b) => b.overall - a.overall);
   }, [workload, satisfaction, revisions]);
 
-  const radarAverage = useMemo(() => {
-    if (!editorRadarData.length) return [];
-    const avg = (key) => Math.round(editorRadarData.reduce((sum, item) => sum + Number(item[key] || 0), 0) / editorRadarData.length);
+  useEffect(() => {
+    if (!editorRadarData.length) return;
+    if (!selectedEditorId || !editorRadarData.some((item) => item.id === selectedEditorId)) {
+      setSelectedEditorId(editorRadarData[0].id);
+    }
+  }, [editorRadarData, selectedEditorId]);
+
+  const selectedEditorPerformance = useMemo(() => {
+    return editorRadarData.find((item) => item.id === selectedEditorId) || editorRadarData[0] || null;
+  }, [editorRadarData, selectedEditorId]);
+
+  const selectedEditorRadar = useMemo(() => {
+    if (!selectedEditorPerformance) return [];
     return [
-      { metric: "Workload", value: avg("workload") },
-      { metric: "Rating", value: avg("rating") },
-      { metric: "Output", value: avg("output") },
-      { metric: "Low Revisions", value: avg("revision") },
-      { metric: "Overall", value: avg("overall") },
+      { metric: "Workload", value: selectedEditorPerformance.workload },
+      { metric: "Rating", value: selectedEditorPerformance.rating },
+      { metric: "Output", value: selectedEditorPerformance.output },
+      { metric: "Low Revisions", value: selectedEditorPerformance.revision },
+      { metric: "Overall", value: selectedEditorPerformance.overall },
     ];
-  }, [editorRadarData]);
+  }, [selectedEditorPerformance]);
 
   return (
     <Layout allowed={["admin"]}>
@@ -182,49 +200,76 @@ export default function AdminDashboard() {
       {/* Editor Radar */}
       <div className="grid lg:grid-cols-[1.1fr,.9fr] gap-4 mb-6">
         <Panel border="border-cyan-500/15" gradient="from-cyan-500/5 via-zinc-900/30 to-zinc-950">
-          <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
             <div>
               <h2 className="text-lg font-semibold">Editor Performance Overview</h2>
-              <p className="text-sm text-zinc-500 mt-1">Radar view based on workload balance, rating, output, and low revisions.</p>
+              <p className="text-sm text-zinc-500 mt-1">Select one editor to view their radar performance individually.</p>
             </div>
-            <Badge tone="blue">Radar</Badge>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedEditorId}
+                onChange={(event) => setSelectedEditorId(event.target.value)}
+                className="bg-zinc-950 border border-cyan-500/20 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400"
+              >
+                {editorRadarData.map((item) => (
+                  <option key={item.id} value={item.id}>{item.editor}</option>
+                ))}
+              </select>
+              <Badge tone="blue">Radar</Badge>
+            </div>
           </div>
-          {radarAverage.length === 0 ? (
+          {selectedEditorRadar.length === 0 ? (
             <div className="border border-dashed border-cyan-500/20 rounded-lg p-8 text-center text-sm text-zinc-500">No editor performance data yet.</div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={radarAverage} outerRadius={105}>
-                <PolarGrid stroke="#27272A" />
-                <PolarAngleAxis dataKey="metric" tick={{ fill: "#A1A1AA", fontSize: 11 }} />
-                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#71717A", fontSize: 10 }} stroke="#3F3F46" />
-                <Radar name="Editor Avg" dataKey="value" stroke="#06B6D4" fill="#06B6D4" fillOpacity={0.22} strokeWidth={2} />
-                <Tooltip contentStyle={{ backgroundColor: "#18181B", border: "1px solid #27272A", borderRadius: 6 }} />
-              </RadarChart>
-            </ResponsiveContainer>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                <div className="rounded-lg border border-cyan-500/15 bg-black/20 p-3"><div className="label-xs text-zinc-500">Editor</div><div className="text-sm font-semibold truncate">{selectedEditorPerformance.editor}</div></div>
+                <div className="rounded-lg border border-cyan-500/15 bg-black/20 p-3"><div className="label-xs text-zinc-500">Overall</div><div className="font-mono text-cyan-300">{selectedEditorPerformance.overall}</div></div>
+                <div className="rounded-lg border border-cyan-500/15 bg-black/20 p-3"><div className="label-xs text-zinc-500">Active</div><div className="font-mono text-blue-300">{selectedEditorPerformance.activeTasks}</div></div>
+                <div className="rounded-lg border border-cyan-500/15 bg-black/20 p-3"><div className="label-xs text-zinc-500">Rating</div><div className="font-mono text-purple-300">{Number(selectedEditorPerformance.avgRating || 0).toFixed(1)} ★</div></div>
+                <div className="rounded-lg border border-cyan-500/15 bg-black/20 p-3"><div className="label-xs text-zinc-500">Revisions</div><div className="font-mono text-amber-300">{selectedEditorPerformance.revisionCount}</div></div>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={selectedEditorRadar} outerRadius={105}>
+                  <PolarGrid stroke="#27272A" />
+                  <PolarAngleAxis dataKey="metric" tick={{ fill: "#A1A1AA", fontSize: 11 }} />
+                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#71717A", fontSize: 10 }} stroke="#3F3F46" />
+                  <Radar name={selectedEditorPerformance.editor} dataKey="value" stroke="#06B6D4" fill="#06B6D4" fillOpacity={0.22} strokeWidth={2} />
+                  <Tooltip contentStyle={{ backgroundColor: "#18181B", border: "1px solid #27272A", borderRadius: 6 }} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </>
           )}
         </Panel>
 
         <Panel border="border-cyan-500/15" gradient="from-cyan-500/5 via-zinc-900/30 to-zinc-950">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Top editor snapshot</h2>
-            <Badge>{editorRadarData.length} shown</Badge>
+            <h2 className="text-lg font-semibold">Select editor</h2>
+            <Badge>{editorRadarData.length} editors</Badge>
           </div>
           <div className="space-y-3">
             {editorRadarData.length === 0 && <div className="text-sm text-zinc-500">No editors to compare yet.</div>}
-            {editorRadarData.slice(0, 5).map((item) => (
-              <div key={item.editor} className="border border-white/10 rounded-lg p-3 bg-black/20">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="text-sm font-medium truncate">{item.editor}</span>
-                  <span className="font-mono text-cyan-300">{item.overall}</span>
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-[10px] text-zinc-500">
-                  <span>Work {item.workload}</span>
-                  <span>Rate {item.rating}</span>
-                  <span>Out {item.output}</span>
-                  <span>Rev {item.revision}</span>
-                </div>
-              </div>
-            ))}
+            {editorRadarData.map((item) => {
+              const selected = item.id === selectedEditorId;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setSelectedEditorId(item.id)}
+                  className={`w-full text-left border rounded-lg p-3 bg-black/20 transition-all ${selected ? "border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,.12)]" : "border-white/10 hover:border-cyan-500/30"}`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-sm font-medium truncate">{item.editor}</span>
+                    <span className={`font-mono ${selected ? "text-cyan-300" : "text-zinc-400"}`}>{item.overall}</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-[10px] text-zinc-500">
+                    <span>Work {item.workload}</span>
+                    <span>Rate {item.rating}</span>
+                    <span>Out {item.output}</span>
+                    <span>Rev {item.revision}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </Panel>
       </div>
