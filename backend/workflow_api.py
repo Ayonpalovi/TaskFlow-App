@@ -59,6 +59,11 @@ async def task(server, task_id: Optional[str]):
     return await server.db.tasks.find_one({"id": task_id}, {"_id": 0})
 
 
+async def existing_project_ids(server) -> set[str]:
+    rows = await server.db.tasks.find({}, {"id": 1, "_id": 0}).to_list(5000)
+    return {row["id"] for row in rows if row.get("id")}
+
+
 async def visible_scope(server, user: dict):
     fields = {"id": 1, "client_id": 1, "assigned_editor_id": 1, "status": 1, "_id": 0}
     if user["role"] == "admin":
@@ -130,41 +135,92 @@ def can_patch(user: dict, collection_name: str) -> bool:
     return False
 
 
+def filter_live_project_docs(items: list[dict], live_project_ids: set[str], collection_name: str) -> list[dict]:
+    if collection_name == "brandProfiles":
+        return [item for item in items if not item.get("project_id") or item.get("project_id") in live_project_ids]
+    if collection_name == "editorPaymentInvoices":
+        return [item for item in items if not item.get("project_id") or item.get("project_id") in live_project_ids]
+    if collection_name in PROJECT_RELATED_COLLECTIONS:
+        return [item for item in items if item.get("project_id") and item.get("project_id") in live_project_ids]
+    return items
+
+
 async def collection_items(server, user: dict, collection_name: str):
     if collection_name == "brandProfiles" and user["role"] == "editor":
         return []
 
     coll = collection(server, collection_name)
+    live_project_ids = await existing_project_ids(server)
+
     if user["role"] == "admin":
-        return [clean(x) for x in await coll.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+        rows = [clean(x) for x in await coll.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+        return filter_live_project_docs(rows, live_project_ids, collection_name)
 
     if collection_name == "editorPaymentInvoices":
         if user["role"] != "editor":
             return []
-        return [clean(x) for x in await coll.find({"editor_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+        rows = [clean(x) for x in await coll.find({"editor_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+        return filter_live_project_docs(rows, live_project_ids, collection_name)
 
     task_ids, client_ids = await visible_scope(server, user)
+    live_visible_task_ids = task_ids.intersection(live_project_ids)
     if collection_name == "brandProfiles":
         query = {"client_id": user["id"]}
     else:
         ors = []
-        if task_ids:
-            ors.append({"project_id": {"$in": list(task_ids)}})
-        if user["role"] == "client":
-            ors.append({"client_id": user["id"]})
-        elif client_ids:
-            ors.append({"client_id": {"$in": list(client_ids)}})
+        if live_visible_task_ids:
+            ors.append({"project_id": {"$in": list(live_visible_task_ids)}})
         query = {"$or": ors} if ors else {"id": "__none__"}
-    return [clean(x) for x in await coll.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+    rows = [clean(x) for x in await coll.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)]
+    return filter_live_project_docs(rows, live_project_ids, collection_name)
 
 
-async def cascade_delete_project(server, task_id: str):
+async def delete_matching_reviews(server, current_task: dict):
+    title = current_task.get("title")
+    task_id = current_task.get("id")
+    client_id = current_task.get("client_id")
+    queries = [{"task_id": task_id}, {"project_id": task_id}]
+    if title:
+        queries.extend([
+            {"project_name": title},
+            {"project_title": title},
+            {"title": title},
+        ])
+    if client_id and title:
+        queries.extend([
+            {"client_id": client_id, "project_name": title},
+            {"client_id": client_id, "project_title": title},
+            {"client_id": client_id, "title": title},
+        ])
+    result = await server.db.reviews.delete_many({"$or": queries})
+    return result.deleted_count
+
+
+async def cascade_delete_project(server, task_id: str, current_task: Optional[dict] = None):
+    current_task = current_task or await task(server, task_id) or {"id": task_id}
+    title = current_task.get("title")
+    client_id = current_task.get("client_id")
     deleted = {}
+
+    related_queries = [{"project_id": task_id}]
+    if title:
+        related_queries.extend([
+            {"project_name": title},
+            {"project_title": title},
+            {"video_title": title},
+        ])
+    if client_id and title:
+        related_queries.extend([
+            {"client_id": client_id, "project_name": title},
+            {"client_id": client_id, "project_title": title},
+            {"client_id": client_id, "video_title": title},
+        ])
+
     for name in PROJECT_RELATED_COLLECTIONS:
-        result = await collection(server, name).delete_many({"project_id": task_id})
+        result = await collection(server, name).delete_many({"$or": related_queries})
         deleted[name] = result.deleted_count
 
-    # Brand profiles are client-level assets, so only remove records explicitly tied to this project.
+    # Brand profiles are mostly client-level assets, so only remove records explicitly tied to this project.
     result = await collection(server, "brandProfiles").delete_many({"project_id": task_id})
     deleted["brandProfiles"] = result.deleted_count
 
@@ -172,6 +228,22 @@ async def cascade_delete_project(server, task_id: str):
     result = await collection(server, "editorPaymentInvoices").delete_many({"project_id": task_id})
     deleted["editorPaymentInvoices"] = result.deleted_count
 
+    deleted["reviews"] = await delete_matching_reviews(server, current_task)
+
+    return deleted
+
+
+async def cleanup_orphan_project_data(server):
+    live_project_ids = await existing_project_ids(server)
+    deleted = {}
+    for name in PROJECT_RELATED_COLLECTIONS:
+        coll = collection(server, name)
+        result = await coll.delete_many({"$or": [{"project_id": {"$exists": False}}, {"project_id": None}, {"project_id": {"$nin": list(live_project_ids)}}]})
+        deleted[name] = result.deleted_count
+
+    # Reviews belong to real tasks. Remove review rows pointing to deleted tasks.
+    result = await server.db.reviews.delete_many({"$or": [{"task_id": {"$exists": False}}, {"task_id": None}, {"task_id": {"$nin": list(live_project_ids)}}]})
+    deleted["reviews"] = result.deleted_count
     return deleted
 
 
@@ -263,6 +335,13 @@ def build_workflow_router(server):
             state[name] = await collection_items(server, user, name)
         return state
 
+    @router.post("/cleanup-orphans")
+    async def workflow_cleanup_orphans(user: dict = Depends(server.get_current_user)):
+        if user["role"] != "admin":
+            raise HTTPException(403, "Admin only")
+        deleted = await cleanup_orphan_project_data(server)
+        return {"ok": True, "deleted": deleted}
+
     @router.delete("/projects/{task_id}/delete-all")
     async def workflow_delete_project_all(task_id: str, user: dict = Depends(server.get_current_user)):
         if user["role"] != "admin":
@@ -272,7 +351,7 @@ def build_workflow_router(server):
         if not current_task:
             raise HTTPException(404, "Task not found")
 
-        deleted_related = await cascade_delete_project(server, task_id)
+        deleted_related = await cascade_delete_project(server, task_id, current_task)
         task_result = await server.db.tasks.delete_one({"id": task_id})
 
         if hasattr(server.db, "requests"):

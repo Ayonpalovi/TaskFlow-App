@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
 import { api, formatApiError } from "../lib/api";
 
@@ -26,6 +26,9 @@ export default function ClientPanel() {
     setTasks(t.data); setReviews(r.data);
   };
   useEffect(() => { load(); }, []);
+
+  const taskIdSet = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
+  const liveReviews = useMemo(() => reviews.filter((review) => review.task_id && taskIdSet.has(review.task_id)), [reviews, taskIdSet]);
 
   const inProgress = tasks.filter(t => t.status === "active" || t.status === "submitted");
   const inRevision = tasks.filter(t => t.status === "revision");
@@ -139,14 +142,15 @@ export default function ClientPanel() {
 
       {active === "review" && (
         <div className="space-y-3" data-testid="review-section">
-          {reviews.length === 0 && <div className="text-sm text-zinc-500 p-8 text-center">No reviews left yet. Approve a project to leave one.</div>}
-          {reviews.map(r => {
+          {liveReviews.length === 0 && <div className="text-sm text-zinc-500 p-8 text-center">No reviews left yet. Approve a project to leave one.</div>}
+          {liveReviews.map(r => {
             const t = tasks.find(x => x.id === r.task_id);
+            if (!t) return null;
             return (
               <div key={r.id} className="border border-white/10 rounded-md p-4 bg-zinc-900/30">
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="font-medium">{t?.title || "Project"}</div>
+                    <div className="font-medium">{t.title}</div>
                     <div className="text-xs text-zinc-500 font-mono">{r.created_at?.slice(0, 10)}</div>
                   </div>
                   <div className="text-amber-400 font-mono text-lg">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</div>
