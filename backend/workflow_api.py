@@ -175,6 +175,67 @@ async def collection_items(server, user: dict, collection_name: str):
     return filter_live_project_docs(rows, live_project_ids, collection_name)
 
 
+async def editor_happiness_feedback(server, editor_id: str):
+    tasks = await server.db.tasks.find(
+        {"assigned_editor_id": editor_id},
+        {"_id": 0, "id": 1, "title": 1, "project_type": 1, "completed_at": 1, "status": 1},
+    ).to_list(2000)
+    task_map = {item["id"]: item for item in tasks if item.get("id")}
+    task_ids = list(task_map.keys())
+    if not task_ids:
+        return []
+
+    feedback = []
+
+    client_reviews = await server.db.reviews.find(
+        {"task_id": {"$in": task_ids}},
+        {"_id": 0, "id": 1, "task_id": 1, "rating": 1, "feedback": 1, "created_at": 1},
+    ).sort("created_at", -1).to_list(2000)
+
+    for review in client_reviews:
+        project = task_map.get(review.get("task_id"))
+        if not project:
+            continue
+        feedback.append({
+            "id": review.get("id") or str(uuid.uuid4()),
+            "source": "client_review",
+            "project_id": project.get("id"),
+            "project_title": project.get("title") or "Project",
+            "project_type": project.get("project_type") or "Video",
+            "rating": review.get("rating"),
+            "feedback": review.get("feedback") or "",
+            "created_at": review.get("created_at"),
+            "client_label": "Anonymous client",
+        })
+
+    happiness_rows = await collection(server, "happinessScores").find(
+        {"project_id": {"$in": task_ids}},
+        {"_id": 0, "id": 1, "project_id": 1, "rating": 1, "feedback": 1, "fast_enough": 1, "clear_communication": 1, "happy_final": 1, "work_again": 1, "created_at": 1},
+    ).sort("created_at", -1).to_list(2000)
+
+    for score in happiness_rows:
+        project = task_map.get(score.get("project_id"))
+        if not project:
+            continue
+        feedback.append({
+            "id": score.get("id") or str(uuid.uuid4()),
+            "source": "happiness_score",
+            "project_id": project.get("id"),
+            "project_title": project.get("title") or "Project",
+            "project_type": project.get("project_type") or "Video",
+            "rating": score.get("rating"),
+            "feedback": score.get("feedback") or "",
+            "fast_enough": score.get("fast_enough"),
+            "clear_communication": score.get("clear_communication"),
+            "happy_final": score.get("happy_final"),
+            "work_again": score.get("work_again"),
+            "created_at": score.get("created_at"),
+            "client_label": "Anonymous client",
+        })
+
+    return sorted(feedback, key=lambda item: item.get("created_at") or "", reverse=True)
+
+
 async def delete_matching_reviews(server, current_task: dict):
     title = current_task.get("title")
     task_id = current_task.get("id")
@@ -334,6 +395,12 @@ def build_workflow_router(server):
         for name in COLLECTIONS:
             state[name] = await collection_items(server, user, name)
         return state
+
+    @router.get("/editor-happiness/me")
+    async def workflow_editor_happiness_me(user: dict = Depends(server.get_current_user)):
+        if user["role"] != "editor":
+            raise HTTPException(403, "Editor only")
+        return await editor_happiness_feedback(server, user["id"])
 
     @router.post("/cleanup-orphans")
     async def workflow_cleanup_orphans(user: dict = Depends(server.get_current_user)):
