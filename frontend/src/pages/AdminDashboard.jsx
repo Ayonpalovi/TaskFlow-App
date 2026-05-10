@@ -1,15 +1,56 @@
-import { useEffect, useState } from "react";
-import Layout, { PageHeader, MetricCard, Badge } from "../components/Layout";
+import { useEffect, useMemo, useState } from "react";
+import Layout, { PageHeader, Badge } from "../components/Layout";
 import { api } from "../lib/api";
 import {
   LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, Legend, BarChart, Bar
+  PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis,
+  PolarRadiusAxis
 } from "recharts";
 
 const STATUS_COLORS = {
   available: "#71717A", active: "#3B82F6", pending: "#F59E0B",
   revision: "#EF4444", completed: "#10B981", draft: "#52525B",
 };
+
+const metricThemes = {
+  blue: { border: "rgba(59,130,246,.30)", glow: "rgba(59,130,246,.10)", text: "text-blue-300", dot: "bg-blue-400" },
+  amber: { border: "rgba(245,158,11,.34)", glow: "rgba(245,158,11,.11)", text: "text-amber-300", dot: "bg-amber-400" },
+  emerald: { border: "rgba(16,185,129,.30)", glow: "rgba(16,185,129,.10)", text: "text-emerald-300", dot: "bg-emerald-400" },
+  red: { border: "rgba(239,68,68,.32)", glow: "rgba(239,68,68,.10)", text: "text-red-300", dot: "bg-red-400" },
+  purple: { border: "rgba(168,85,247,.30)", glow: "rgba(168,85,247,.10)", text: "text-purple-300", dot: "bg-purple-400" },
+  cyan: { border: "rgba(6,182,212,.30)", glow: "rgba(6,182,212,.10)", text: "text-cyan-300", dot: "bg-cyan-400" },
+  zinc: { border: "rgba(255,255,255,.12)", glow: "rgba(255,255,255,.045)", text: "text-zinc-100", dot: "bg-zinc-400" },
+};
+
+function SoftMetricCard({ label, value, color = "zinc", helper }) {
+  const theme = metricThemes[color] || metricThemes.zinc;
+
+  return (
+    <div
+      className="relative overflow-hidden border rounded-xl p-5 bg-zinc-900/30 min-h-[112px] card-hover"
+      style={{
+        borderColor: theme.border,
+        background: `linear-gradient(135deg, ${theme.glow}, rgba(24,24,27,.44) 58%, rgba(9,9,11,.74))`,
+      }}
+    >
+      <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: theme.border }} />
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="label-xs text-zinc-500">{label}</div>
+        <span className={`w-2 h-2 rounded-full ${theme.dot}`} />
+      </div>
+      <div className={`font-mono text-3xl font-semibold tracking-tight ${theme.text}`}>{value}</div>
+      {helper && <div className="text-xs text-zinc-600 mt-2">{helper}</div>}
+    </div>
+  );
+}
+
+function Panel({ children, className = "", border = "border-white/10", gradient = "from-zinc-900/30 to-zinc-950" }) {
+  return (
+    <div className={`border ${border} rounded-xl p-5 bg-gradient-to-br ${gradient} ${className}`}>
+      {children}
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
@@ -39,13 +80,50 @@ export default function AdminDashboard() {
   const approve = async (id) => { await api.post(`/requests/${id}/approve`); load(); };
   const reject  = async (id) => { await api.post(`/requests/${id}/reject`); load(); };
 
+  const editorRadarData = useMemo(() => {
+    const satisfactionMap = new Map((satisfaction?.editors || []).map((item) => [item.user.id, item]));
+    const revisionMap = new Map((revisions?.editors || []).map((item) => [item.user.id, item]));
+
+    return workload.slice(0, 6).map((item) => {
+      const editorId = item.editor.id;
+      const sat = satisfactionMap.get(editorId);
+      const rev = revisionMap.get(editorId);
+      const loadScore = Math.max(0, Math.min(100, 100 - Number(item.load_pct || 0)));
+      const ratingScore = Math.min(100, Number(sat?.avg_rating || 0) * 20);
+      const deliveryScore = Math.min(100, Number(item.total || 0) * 20);
+      const revisionScore = Math.max(0, 100 - Number(rev?.revision_count || 0) * 20);
+      const overall = Math.round((loadScore + ratingScore + deliveryScore + revisionScore) / 4);
+
+      return {
+        editor: item.editor.anime_name,
+        workload: loadScore,
+        rating: ratingScore,
+        output: deliveryScore,
+        revision: revisionScore,
+        overall,
+      };
+    });
+  }, [workload, satisfaction, revisions]);
+
+  const radarAverage = useMemo(() => {
+    if (!editorRadarData.length) return [];
+    const avg = (key) => Math.round(editorRadarData.reduce((sum, item) => sum + Number(item[key] || 0), 0) / editorRadarData.length);
+    return [
+      { metric: "Workload", value: avg("workload") },
+      { metric: "Rating", value: avg("rating") },
+      { metric: "Output", value: avg("output") },
+      { metric: "Low Revisions", value: avg("revision") },
+      { metric: "Overall", value: avg("overall") },
+    ];
+  }, [editorRadarData]);
+
   return (
     <Layout allowed={["admin"]}>
       <PageHeader label="Admin / Overview" title="Command Center" subtitle="Pipeline health, revenue, satisfaction, and risk." />
 
       {/* MVP of the Month */}
       {mvp && mvp.editor && (
-        <div className="border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-zinc-900/30 rounded-md p-5 mb-6 flex items-center gap-4" data-testid="mvp-card">
+        <div className="border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-zinc-900/30 to-zinc-950 rounded-xl p-5 mb-6 flex items-center gap-4" data-testid="mvp-card">
           <div className="text-5xl">👑</div>
           <div className="flex-1 min-w-0">
             <div className="label-xs text-amber-400 mb-1">MVP of the Month</div>
@@ -60,20 +138,20 @@ export default function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <MetricCard label="Total Projects" value={stats?.total_projects ?? "—"} />
-        <MetricCard label="In Progress" value={stats?.in_progress ?? "—"} tone="warn" />
-        <MetricCard label="Completed" value={stats?.completed ?? "—"} tone="good" />
-        <MetricCard label="Revisions" value={stats?.revisions ?? "—"} tone="bad" />
-        <MetricCard label="Monthly Revenue" value={`$${(stats?.monthly_revenue ?? 0).toLocaleString()}`} />
-        <MetricCard label="Monthly Profit" value={`$${(stats?.monthly_profit ?? 0).toLocaleString()}`} tone="good" />
-        <MetricCard label="Editors" value={stats?.editors_count ?? "—"} />
-        <MetricCard label="Clients" value={stats?.clients_count ?? "—"} />
+        <SoftMetricCard label="Total Projects" value={stats?.total_projects ?? "—"} color="purple" helper="All project records" />
+        <SoftMetricCard label="In Progress" value={stats?.in_progress ?? "—"} color="amber" helper="Currently moving" />
+        <SoftMetricCard label="Completed" value={stats?.completed ?? "—"} color="emerald" helper="Delivered projects" />
+        <SoftMetricCard label="Revisions" value={stats?.revisions ?? "—"} color="red" helper="Needs changes" />
+        <SoftMetricCard label="Monthly Revenue" value={`$${(stats?.monthly_revenue ?? 0).toLocaleString()}`} color="blue" helper="This month" />
+        <SoftMetricCard label="Monthly Profit" value={`$${(stats?.monthly_profit ?? 0).toLocaleString()}`} color="emerald" helper="After costs" />
+        <SoftMetricCard label="Editors" value={stats?.editors_count ?? "—"} color="cyan" helper="Creative team" />
+        <SoftMetricCard label="Clients" value={stats?.clients_count ?? "—"} color="zinc" helper="Active accounts" />
       </div>
 
       {/* Charts */}
       <div className="grid lg:grid-cols-3 gap-4 mb-6">
-        <div className="lg:col-span-2 border border-white/10 rounded-md p-5 bg-zinc-900/30">
-          <div className="label-xs text-zinc-400 mb-4">Revenue · Profit · Tasks (last 30 days)</div>
+        <Panel className="lg:col-span-2" border="border-blue-500/15" gradient="from-blue-500/5 via-zinc-900/30 to-zinc-950">
+          <div className="label-xs text-blue-300 mb-4">Revenue · Profit · Tasks (last 30 days)</div>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={trends?.daily || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272A" />
@@ -86,9 +164,9 @@ export default function AdminDashboard() {
               <Line type="monotone" dataKey="tasks" stroke="#F59E0B" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30">
-          <div className="label-xs text-zinc-400 mb-4">Status breakdown</div>
+        </Panel>
+        <Panel border="border-purple-500/15" gradient="from-purple-500/5 via-zinc-900/30 to-zinc-950">
+          <div className="label-xs text-purple-300 mb-4">Status breakdown</div>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={trends?.status_breakdown || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name} (${value})`}>
@@ -98,12 +176,62 @@ export default function AdminDashboard() {
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </Panel>
+      </div>
+
+      {/* Editor Radar */}
+      <div className="grid lg:grid-cols-[1.1fr,.9fr] gap-4 mb-6">
+        <Panel border="border-cyan-500/15" gradient="from-cyan-500/5 via-zinc-900/30 to-zinc-950">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Editor Performance Overview</h2>
+              <p className="text-sm text-zinc-500 mt-1">Radar view based on workload balance, rating, output, and low revisions.</p>
+            </div>
+            <Badge tone="blue">Radar</Badge>
+          </div>
+          {radarAverage.length === 0 ? (
+            <div className="border border-dashed border-cyan-500/20 rounded-lg p-8 text-center text-sm text-zinc-500">No editor performance data yet.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <RadarChart data={radarAverage} outerRadius={105}>
+                <PolarGrid stroke="#27272A" />
+                <PolarAngleAxis dataKey="metric" tick={{ fill: "#A1A1AA", fontSize: 11 }} />
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: "#71717A", fontSize: 10 }} stroke="#3F3F46" />
+                <Radar name="Editor Avg" dataKey="value" stroke="#06B6D4" fill="#06B6D4" fillOpacity={0.22} strokeWidth={2} />
+                <Tooltip contentStyle={{ backgroundColor: "#18181B", border: "1px solid #27272A", borderRadius: 6 }} />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+
+        <Panel border="border-cyan-500/15" gradient="from-cyan-500/5 via-zinc-900/30 to-zinc-950">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Top editor snapshot</h2>
+            <Badge>{editorRadarData.length} shown</Badge>
+          </div>
+          <div className="space-y-3">
+            {editorRadarData.length === 0 && <div className="text-sm text-zinc-500">No editors to compare yet.</div>}
+            {editorRadarData.slice(0, 5).map((item) => (
+              <div key={item.editor} className="border border-white/10 rounded-lg p-3 bg-black/20">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <span className="text-sm font-medium truncate">{item.editor}</span>
+                  <span className="font-mono text-cyan-300">{item.overall}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-[10px] text-zinc-500">
+                  <span>Work {item.workload}</span>
+                  <span>Rate {item.rating}</span>
+                  <span>Out {item.output}</span>
+                  <span>Rev {item.revision}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
       </div>
 
       {/* Risk + Workload */}
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30" data-testid="deadline-risk-panel">
+        <Panel border="border-red-500/15" gradient="from-red-500/5 via-zinc-900/30 to-zinc-950" data-testid="deadline-risk-panel">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Deadline risk</h2>
             <Badge tone={risk.length > 0 ? "bad" : "good"}>{risk.length} at risk</Badge>
@@ -111,7 +239,7 @@ export default function AdminDashboard() {
           <div className="space-y-2">
             {risk.length === 0 && <div className="text-sm text-zinc-500">All deadlines healthy.</div>}
             {risk.slice(0, 6).map(r => (
-              <div key={r.task_id} className="flex items-center justify-between p-3 border border-white/10 rounded-md" data-testid={`risk-task-${r.task_id}`}
+              <div key={r.task_id} className="flex items-center justify-between p-3 border border-white/10 rounded-md bg-black/20" data-testid={`risk-task-${r.task_id}`}
                 style={{ borderLeftWidth: 3, borderLeftColor: r.risk === "overdue" ? "#EF4444" : r.risk === "high" ? "#F59E0B" : "#3B82F6" }}>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm truncate">{r.title}</div>
@@ -126,9 +254,9 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
 
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30" data-testid="workload-panel">
+        <Panel border="border-emerald-500/15" gradient="from-emerald-500/5 via-zinc-900/30 to-zinc-950" data-testid="workload-panel">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Editor workload</h2>
             <Badge>{workload.length} editors</Badge>
@@ -153,12 +281,12 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* Satisfaction + Revisions */}
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30">
+        <Panel border="border-purple-500/15" gradient="from-purple-500/5 via-zinc-900/30 to-zinc-950">
           <h2 className="text-lg font-semibold mb-4">Client satisfaction</h2>
           <div className="space-y-2">
             {(satisfaction?.editors || []).slice(0, 5).map(s => (
@@ -168,20 +296,20 @@ export default function AdminDashboard() {
                   <span>{s.user.anime_name}</span>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-sm">{s.avg_rating} ★</div>
+                  <div className="font-mono text-sm text-purple-300">{s.avg_rating} ★</div>
                   <div className="label-xs text-zinc-500">{s.review_count} reviews</div>
                 </div>
               </div>
             ))}
             {(!satisfaction || satisfaction.editors.length === 0) && <div className="text-sm text-zinc-500">No reviews yet.</div>}
           </div>
-        </div>
+        </Panel>
 
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30" data-testid="revision-counter-panel">
+        <Panel border="border-amber-500/15" gradient="from-amber-500/5 via-zinc-900/30 to-zinc-950" data-testid="revision-counter-panel">
           <h2 className="text-lg font-semibold mb-4">Revision counter</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <div className="label-xs text-zinc-500 mb-2">Top editors (revisions)</div>
+              <div className="label-xs text-amber-300 mb-2">Top editors (revisions)</div>
               {(revisions?.editors || []).slice(0, 5).map(r => (
                 <div key={r.user.id} className="flex justify-between py-1">
                   <span className="truncate">{r.user.anime_name}</span>
@@ -191,7 +319,7 @@ export default function AdminDashboard() {
               {(!revisions || revisions.editors.length === 0) && <div className="text-zinc-500 text-xs">None</div>}
             </div>
             <div>
-              <div className="label-xs text-zinc-500 mb-2">Top clients (revisions)</div>
+              <div className="label-xs text-amber-300 mb-2">Top clients (revisions)</div>
               {(revisions?.clients || []).slice(0, 5).map(r => (
                 <div key={r.user.id} className="flex justify-between py-1">
                   <span className="truncate">{r.user.real_name || r.user.anime_name}</span>
@@ -201,12 +329,12 @@ export default function AdminDashboard() {
               {(!revisions || revisions.clients.length === 0) && <div className="text-zinc-500 text-xs">None</div>}
             </div>
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* Pending requests + recent tasks */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30">
+        <Panel border="border-blue-500/15" gradient="from-blue-500/5 via-zinc-900/30 to-zinc-950">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Pending editor requests</h2>
             <Badge tone="warn">{reqs.length}</Badge>
@@ -216,7 +344,7 @@ export default function AdminDashboard() {
             {reqs.map((r) => {
               const task = tasks.find(t => t.id === r.task_id);
               return (
-                <div key={r.id} className="flex items-center gap-3 p-3 border border-white/10 rounded-md" data-testid={`request-row-${r.id}`}>
+                <div key={r.id} className="flex items-center gap-3 p-3 border border-white/10 rounded-md bg-black/20" data-testid={`request-row-${r.id}`}>
                   {r.editor?.avatar_url && <img src={r.editor.avatar_url} className="w-9 h-9 rounded-md object-cover" alt="" />}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{r.editor?.anime_name || r.editor_anime_name}</div>
@@ -228,9 +356,9 @@ export default function AdminDashboard() {
               );
             })}
           </div>
-        </div>
+        </Panel>
 
-        <div className="border border-white/10 rounded-md p-5 bg-zinc-900/30">
+        <Panel border="border-zinc-700/40" gradient="from-zinc-900/40 via-zinc-900/30 to-zinc-950">
           <h2 className="text-lg font-semibold mb-4">Recent tasks</h2>
           <div className="space-y-2">
             {tasks.slice(0, 8).map((t) => (
@@ -243,7 +371,7 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </div>
     </Layout>
   );
