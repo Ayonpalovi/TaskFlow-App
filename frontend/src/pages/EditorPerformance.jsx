@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
 import { api } from "../lib/api";
 
@@ -85,15 +85,61 @@ function PerformanceMetricCard({ label, value, color = "blue", helper }) {
   );
 }
 
+function HappinessCard({ item }) {
+  const rating = Number(item.rating || 0);
+  const color = rating >= 8 ? metricStyles.green : rating >= 6 ? metricStyles.amber : metricStyles.red;
+
+  return (
+    <div
+      className="relative overflow-hidden border rounded-xl bg-black/20 p-4 card-hover"
+      style={{
+        borderColor: color.border,
+        background: `linear-gradient(135deg, ${color.glow}, rgba(24, 24, 27, 0.42) 62%, rgba(9, 9, 11, 0.74))`,
+      }}
+    >
+      <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: color.border }} />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="label-xs text-zinc-500 mb-2">Anonymous Client Feedback</div>
+          <div className="font-semibold text-white">{item.project_title}</div>
+          <div className="text-xs text-zinc-500 mt-1">{item.project_type} · {item.created_at?.slice(0, 10) || "No date"}</div>
+        </div>
+        <div className={`font-mono text-2xl ${color.text}`}>{rating}/10</div>
+      </div>
+
+      {item.feedback ? (
+        <p className="text-sm text-zinc-300 mt-4">{item.feedback}</p>
+      ) : (
+        <p className="text-sm text-zinc-600 mt-4">No written feedback.</p>
+      )}
+
+      {item.source === "happiness_score" && (
+        <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+          <div className="rounded-lg border border-white/5 bg-black/20 p-2"><span className="text-zinc-600">Fast:</span> {item.fast_enough || "—"}</div>
+          <div className="rounded-lg border border-white/5 bg-black/20 p-2"><span className="text-zinc-600">Clear:</span> {item.clear_communication || "—"}</div>
+          <div className="rounded-lg border border-white/5 bg-black/20 p-2"><span className="text-zinc-600">Final:</span> {item.happy_final || "—"}</div>
+          <div className="rounded-lg border border-white/5 bg-black/20 p-2"><span className="text-zinc-600">Again:</span> {item.work_again || "—"}</div>
+        </div>
+      )}
+
+      <div className="text-xs text-zinc-600 mt-4">Client name hidden for privacy.</div>
+    </div>
+  );
+}
+
 export default function EditorPerformance() {
   const [p, setP] = useState(null);
   const [proofs, setProofs] = useState([]);
+  const [happiness, setHappiness] = useState([]);
 
   useEffect(() => {
     api.get("/performance/me").then(r => setP(r.data));
     api.get("/workflow/editor-payment-invoices/me")
       .then(r => setProofs(Array.isArray(r.data) ? r.data : []))
       .catch(() => setProofs([]));
+    api.get("/workflow/editor-happiness/me")
+      .then(r => setHappiness(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setHappiness([]));
   }, []);
 
   const score = p?.score ?? 0;
@@ -101,10 +147,14 @@ export default function EditorPerformance() {
   const acceptance = p?.acceptance_rate ?? 0;
   const revision = p?.revision_rate ?? 0;
   const response = p?.response_rate ?? 0;
+  const happinessAverage = useMemo(() => {
+    if (!happiness.length) return 0;
+    return happiness.reduce((sum, item) => sum + Number(item.rating || 0), 0) / happiness.length;
+  }, [happiness]);
 
   return (
     <Layout allowed={["editor"]}>
-      <PageHeader label="Performance / 30-day" title="Your Metrics" subtitle="Color-coded performance overview. Payment proofs appear after Admin marks you as paid." />
+      <PageHeader label="Performance / 30-day" title="Your Metrics" subtitle="Color-coded performance overview. Client happiness feedback is anonymous." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
         <PerformanceMetricCard label="On-time Rate" value={`${onTime}%`} color={onTime >= 90 ? "green" : onTime >= 70 ? "amber" : "red"} helper="Delivery reliability" />
@@ -116,6 +166,26 @@ export default function EditorPerformance() {
         <PerformanceMetricCard label="Total Tasks" value={p?.total_tasks ?? 0} color="cyan" helper="All assigned work" />
         <PerformanceMetricCard label="Completed" value={p?.completed_tasks ?? 0} color="teal" helper="Finished projects" />
         <PerformanceMetricCard label="Overall Score" value={score} color={score >= 90 ? "green" : score >= 70 ? "amber" : "red"} helper="Combined performance score" />
+      </div>
+
+      <div className="border border-purple-500/20 rounded-xl bg-gradient-to-br from-purple-500/10 via-zinc-900/30 to-zinc-950 p-5 mb-8">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h2 className="text-lg font-semibold">Client Happiness Feedback</h2>
+            <p className="text-sm text-zinc-500 mt-1">Feedback from projects you edited. Client identity is hidden.</p>
+          </div>
+          <Badge tone={happiness.length ? "good" : "default"}>{happinessAverage ? `${happinessAverage.toFixed(1)}/10 avg` : "No score"}</Badge>
+        </div>
+
+        {happiness.length === 0 ? (
+          <div className="border border-dashed border-purple-500/20 rounded-lg p-8 text-center text-sm text-zinc-500 bg-black/20">
+            No happiness feedback yet.
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {happiness.map((item) => <HappinessCard key={`${item.source}-${item.id}`} item={item} />)}
+          </div>
+        )}
       </div>
 
       <div className="border border-emerald-500/20 rounded-xl bg-gradient-to-br from-emerald-500/10 via-zinc-900/30 to-zinc-950 p-5">
