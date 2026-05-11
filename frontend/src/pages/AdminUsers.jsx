@@ -11,6 +11,38 @@ function statusTone(status) {
   return "default";
 }
 
+function isUserOnline(user) {
+  if (typeof user?.online === "boolean") return user.online;
+  if (!user?.last_seen) return false;
+
+  try {
+    const lastSeen = new Date(user.last_seen).getTime();
+    return Date.now() - lastSeen < 2 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function formatLastSeen(value) {
+  if (!value) return "Never active";
+
+  try {
+    const diff = Date.now() - new Date(value).getTime();
+    const minutes = Math.max(0, Math.round(diff / 60000));
+
+    if (minutes < 1) return "Active now";
+    if (minutes < 60) return `${minutes}m ago`;
+
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.round(hours / 24);
+    return `${days}d ago`;
+  } catch {
+    return "Unknown";
+  }
+}
+
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
@@ -26,7 +58,11 @@ export default function AdminUsers() {
     setUsers(data.filter((u) => u.role !== "admin"));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const visibleUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -86,6 +122,24 @@ export default function AdminUsers() {
     }
   };
 
+  const deleteUser = async (user) => {
+    const firstConfirm = confirm(`Permanently delete ${user.email}? This removes the login account. Use this only when someone has left your agency.`);
+    if (!firstConfirm) return;
+
+    const secondConfirm = confirm("Final confirmation: this cannot be undone from the dashboard. Existing project records will stay, but the account login will be removed.");
+    if (!secondConfirm) return;
+
+    setErr("");
+    setNotice("");
+    try {
+      await api.delete(`/account/users/${user.id}/delete`);
+      setNotice(`${user.email} has been permanently deleted.`);
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail || e.message));
+    }
+  };
+
   const copyInvite = async (user) => {
     if (!user.invite_url) {
       setNotice("Invite links are only shown right after creating a new invite.");
@@ -99,7 +153,7 @@ export default function AdminUsers() {
 
   return (
     <Layout allowed={["admin"]}>
-      <PageHeader label="Admin / Team" title="Team & Clients" subtitle="Invite editors by email, deactivate accounts safely, and keep project history protected.">
+      <PageHeader label="Admin / Team" title="Team & Clients" subtitle="Invite editors by email, deactivate accounts safely, or delete accounts when someone leaves the agency.">
         <button data-testid="create-user-button" onClick={() => setOpen(true)} className="px-4 py-2 text-white text-sm font-medium rounded-xl shadow-[0_0_28px_rgba(0,81,255,.22)]" style={{ background: BLUE }}>+ Invite Account</button>
       </PageHeader>
 
@@ -126,17 +180,34 @@ export default function AdminUsers() {
               <th className="p-3">Role</th>
               <th className="p-3">Skills</th>
               <th className="p-3">Status</th>
+              <th className="p-3">Online</th>
               <th className="p-3">Access</th>
             </tr>
           </thead>
           <tbody>
             {visibleUsers.map((u) => {
               const status = u.status || "active";
+              const online = status !== "deactivated" && isUserOnline(u);
               return (
                 <tr key={u.id} className="border-t border-white/5" data-testid={`user-row-${u.id}`}>
                   <td className="p-3 flex items-center gap-2">
-                    {u.avatar_url && <img src={u.avatar_url} className={`w-7 h-7 object-cover ${u.role === "editor" ? "rounded-md" : "rounded-full"}`} alt="" />}
-                    <span className="font-medium">{u.anime_name}</span>
+                    <div className="relative shrink-0">
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} className={`w-7 h-7 object-cover ${u.role === "editor" ? "rounded-md" : "rounded-full"}`} alt="" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-zinc-800 grid place-items-center text-xs text-zinc-300">
+                          {(u.anime_name || u.real_name || u.email || "U").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-zinc-950 ${online ? "bg-emerald-400" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
+                    </div>
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        {u.anime_name}
+                        {online && <span className="text-[10px] text-emerald-400">online</span>}
+                      </div>
+                      <div className="text-[10px] text-zinc-600">{formatLastSeen(u.last_seen)}</div>
+                    </div>
                   </td>
                   <td className="p-3 text-zinc-400">{u.real_name}</td>
                   <td className="p-3 text-zinc-400 font-mono text-xs">{u.email}</td>
@@ -144,18 +215,27 @@ export default function AdminUsers() {
                   <td className="p-3 text-xs text-zinc-400 max-w-[220px] truncate">{(u.skills || []).join(", ") || "—"}</td>
                   <td className="p-3"><Badge tone={statusTone(status)}>{status}</Badge></td>
                   <td className="p-3">
-                    {status === "deactivated" ? (
-                      <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
-                    ) : (
-                      <button onClick={() => deactivate(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Deactivate</button>
-                    )}
-                    {status === "invited" && <button onClick={() => copyInvite(u)} className="ml-3 text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
+                    <span className={`inline-flex items-center gap-1.5 text-xs ${online ? "text-emerald-400" : "text-zinc-500"}`}>
+                      <span className={`w-2 h-2 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} />
+                      {online ? "Online" : "Offline"}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {status === "deactivated" ? (
+                        <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
+                      ) : (
+                        <button onClick={() => deactivate(u)} data-testid={`deactivate-user-${u.id}`} className="text-xs text-amber-400 hover:text-amber-300">Deactivate</button>
+                      )}
+                      <button onClick={() => deleteUser(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button>
+                      {status === "invited" && <button onClick={() => copyInvite(u)} className="text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {visibleUsers.length === 0 && (
-              <tr><td colSpan="7" className="p-8 text-center text-zinc-500">No users match this view.</td></tr>
+              <tr><td colSpan="8" className="p-8 text-center text-zinc-500">No users match this view.</td></tr>
             )}
           </tbody>
         </table>
