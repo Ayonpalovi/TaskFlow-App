@@ -6,6 +6,7 @@ import DashboardMotionProvider from "./components/DashboardMotionProvider";
 
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import AcceptInvitePage from "./pages/AcceptInvitePage";
 import ShowcasePage from "./pages/ShowcasePage";
 
 import AdminDashboard from "./pages/AdminDashboard";
@@ -87,6 +88,7 @@ function App() {
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
 
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
