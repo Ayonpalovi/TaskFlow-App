@@ -104,7 +104,15 @@ export default function AdminUsers() {
       const { data } = await api.post("/account/users/invite", payload);
       setOpen(false);
       setF({ email: "", real_name: "", role: "editor", skills: "", avatar_url: "", charge_per_project: 0 });
-      setNotice(data?.invite_url ? `Invite created. Copy setup link: ${data.invite_url}` : "Account invite created successfully.");
+
+      if (data?.email_sent) {
+        setNotice(`Invite email sent successfully to ${payload.email}.`);
+      } else if (data?.invite_url) {
+        setNotice(`Email was not sent. Check SMTP settings, or manually copy this setup link: ${data.invite_url}`);
+      } else {
+        setNotice("Account invite created successfully.");
+      }
+
       await load();
     } catch (e) {
       setErr(formatApiError(e?.response?.data?.detail || e.message));
