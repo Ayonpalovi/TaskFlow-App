@@ -16,15 +16,14 @@ function RoleTag({ role }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium lowercase ${
         isEditor
-          ? "border-blue-500/40 bg-blue-500/12 text-blue-300 shadow-[0_0_18px_rgba(0,81,255,.18)]"
-          : "border-violet-500/40 bg-violet-500/12 text-violet-300 shadow-[0_0_18px_rgba(139,92,246,.16)]"
+          ? "border-blue-500/25 bg-blue-500/10 text-blue-300"
+          : "border-violet-500/25 bg-violet-500/10 text-violet-300"
       }`}
       title={isEditor ? "Editor account" : "Client account"}
     >
-      <span className="text-[12px]">{isEditor ? "🎬" : "👤"}</span>
-      {isEditor ? "Editor" : "Client"}
+      {isEditor ? "editor" : "client"}
     </span>
   );
 }
