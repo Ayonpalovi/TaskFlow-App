@@ -108,7 +108,7 @@ export default function AdminUsers() {
       if (data?.email_sent) {
         setNotice(`Invite email sent successfully to ${payload.email}.`);
       } else if (data?.invite_url) {
-        setNotice(`Email was not sent. Check SMTP settings, or manually copy this setup link: ${data.invite_url}`);
+        setNotice(`Email was not sent. Check Resend/email provider settings, or manually copy this setup link: ${data.invite_url}`);
       } else {
         setNotice("Account invite created successfully.");
       }
