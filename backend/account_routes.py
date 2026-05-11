@@ -42,7 +42,7 @@ def send_smtp_email(to_email: str, subject: str, body: str) -> bool:
     sender = os.environ.get("SMTP_FROM") or username
     port = int(os.environ.get("SMTP_PORT", "587"))
 
-    if not host or not username or not password or not sender:
+    if not host or not username or not password or not sender or not to_email:
         return False
 
     message = EmailMessage()
@@ -59,7 +59,7 @@ def send_smtp_email(to_email: str, subject: str, body: str) -> bool:
     return True
 
 
-async def activity(server, actor_id: str, action: str, target: dict, meta: dict | None = None):
+async def activity(server, actor_id: str, action: str, target: dict, meta: Optional[dict] = None):
     await server.db.activity_logs.insert_one({
         "id": str(server.uuid.uuid4()),
         "actor_id": actor_id,
