@@ -3,6 +3,14 @@ import { api } from "../lib/api";
 
 const AuthContext = createContext(null);
 
+function clearStoredSession() {
+  try {
+    localStorage.removeItem("taskflow_token");
+  } catch {
+    // Ignore storage restrictions.
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -12,16 +20,27 @@ export function AuthProvider({ children }) {
       try {
         const { data } = await api.get("/auth/me");
 
+        if (data?.status === "deactivated") {
+          setUser(false);
+          clearStoredSession();
+          try {
+            sessionStorage.setItem("motionholic_auth_notice", "Your Motionholic OS account has been deactivated. Please contact the Motionholic team if you think this is a mistake.");
+          } catch {
+            // ignore
+          }
+          return;
+        }
+
         // Only save user if backend returns a proper role
         if (data && data.role) {
           setUser(data);
         } else {
           setUser(false);
-          localStorage.removeItem("taskflow_token");
+          clearStoredSession();
         }
       } catch (error) {
         setUser(false);
-        localStorage.removeItem("taskflow_token");
+        clearStoredSession();
       } finally {
         setLoading(false);
       }
@@ -32,6 +51,11 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
+
+    if (data?.user?.status === "deactivated") {
+      clearStoredSession();
+      throw new Error("Your Motionholic OS account has been deactivated. Please contact the Motionholic team if you think this is a mistake.");
+    }
 
     if (data?.token) {
       localStorage.setItem("taskflow_token", data.token);
@@ -52,7 +76,7 @@ export function AuthProvider({ children }) {
       // Ignore logout backend errors
     }
 
-    localStorage.removeItem("taskflow_token");
+    clearStoredSession();
     setUser(false);
   };
 
