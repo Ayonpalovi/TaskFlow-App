@@ -43,20 +43,25 @@ def send_smtp_email(to_email: str, subject: str, body: str) -> bool:
     port = int(os.environ.get("SMTP_PORT", "587"))
 
     if not host or not username or not password or not sender or not to_email:
+        print("SMTP skipped: missing SMTP env config or recipient")
         return False
 
-    message = EmailMessage()
-    message["From"] = sender
-    message["To"] = to_email
-    message["Subject"] = subject
-    message.set_content(body)
+    try:
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = to_email
+        message["Subject"] = subject
+        message.set_content(body)
 
-    with smtplib.SMTP(host, port, timeout=12) as smtp:
-        smtp.starttls()
-        smtp.login(username, password)
-        smtp.send_message(message)
+        with smtplib.SMTP(host, port, timeout=12) as smtp:
+            smtp.starttls()
+            smtp.login(username, password)
+            smtp.send_message(message)
 
-    return True
+        return True
+    except Exception as exc:
+        print(f"SMTP send failed: {exc}")
+        return False
 
 
 async def activity(server, actor_id: str, action: str, target: dict, meta: Optional[dict] = None):
