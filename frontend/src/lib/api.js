@@ -31,6 +31,19 @@ function safeLocalStorageSet(key, value) {
   }
 }
 
+function clearSessionAndRedirect(message) {
+  try {
+    window.localStorage.removeItem("taskflow_token");
+    window.sessionStorage.setItem("motionholic_auth_notice", message);
+  } catch {
+    // Ignore storage restrictions.
+  }
+
+  if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+    window.location.href = "/login";
+  }
+}
+
 // Stop silent broken requests when REACT_APP_BACKEND_URL is missing
 api.interceptors.request.use((config) => {
   if (!BACKEND_URL) {
@@ -81,6 +94,15 @@ api.interceptors.response.use((response) => {
   }
 
   return response;
+}, (error) => {
+  const detail = error?.response?.data?.detail;
+  const message = typeof detail === "string" ? detail : "";
+
+  if (error?.response?.status === 403 && message.toLowerCase().includes("deactivated")) {
+    clearSessionAndRedirect(message);
+  }
+
+  return Promise.reject(error);
 });
 
 export function formatApiError(detail) {
