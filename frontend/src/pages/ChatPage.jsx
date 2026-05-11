@@ -7,7 +7,6 @@ const REACTIONS = ["👍", "🔥", "💀", "😂", "😭"];
 
 function ReactionRow({ msg, onReact }) {
   const reactions = msg.reactions || {};
-  const hasAny = Object.keys(reactions).length > 0;
   return (
     <div className="flex flex-wrap gap-1 mt-1.5">
       {Object.entries(reactions).map(([emoji, users]) => (
@@ -71,11 +70,17 @@ export default function ChatPage({ mode }) {
   const recRef = useRef(null);
   const chunksRef = useRef([]);
 
+  const getSendChannel = () => {
+    if (!channel || !user) return null;
+    if (user.role !== "admin" && channel.startsWith("dm:")) return `dm:${user.id}`;
+    return channel;
+  };
+
   useEffect(() => {
     if (!user) return;
     api.get("/conversations").then(r => {
       setConversations(r.data);
-      if (mode === "client" && r.data[0]) setChannel(`dm:${r.data[0].id}`);
+      if (mode === "client" && r.data[0]) setChannel(`dm:${user.id}`);
     });
   }, [mode, user]);
 
@@ -95,7 +100,8 @@ export default function ChatPage({ mode }) {
     try {
       const token = localStorage.getItem("taskflow_token");
       if (!token) { startPolling(); return; }
-      const wsUrl = API.replace(/^http/, "ws").replace(/\/api$/, "") + `/api/ws?token=${encodeURIComponent(token)}&channel=${encodeURIComponent(channel)}`;
+      const wsChannel = getSendChannel() || channel;
+      const wsUrl = API.replace(/^http/, "ws").replace(/\/api$/, "") + `/api/ws?token=${encodeURIComponent(token)}&channel=${encodeURIComponent(wsChannel)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       ws.onopen = () => setWsConnected(true);
@@ -109,21 +115,22 @@ export default function ChatPage({ mode }) {
       ws.onerror = () => { setWsConnected(false); if (!pollRef.current) startPolling(); };
     } catch { startPolling(); }
 
-    // also poll occasionally to refresh reactions even with WS
     const reactPoll = setInterval(fetchMsgs, 8000);
     return () => { stop = true; cleanup(); clearInterval(reactPoll); };
-  }, [channel]);
+  }, [channel, user]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const send = async () => {
-    if (!input.trim() || !channel || !user) return;
-    const target = user.role !== "admin" && channel.startsWith("dm:") ? `dm:${user.id}` : channel;
+    const content = input.trim();
+    const target = getSendChannel();
+    if (!content || !target || !user) return;
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ content: input }));
+      wsRef.current.send(JSON.stringify({ channel: target, content, type: "text" }));
       setInput("");
     } else {
-      await api.post("/messages", { channel: target, content: input });
+      await api.post("/messages", { channel: target, content, type: "text" });
       setInput("");
       const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
       setMessages(data);
@@ -151,7 +158,6 @@ export default function ChatPage({ mode }) {
         stream.getTracks().forEach(t => t.stop());
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
         const buf = await blob.arrayBuffer();
-        // Convert to base64
         let binary = "";
         const bytes = new Uint8Array(buf);
         for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
@@ -162,7 +168,8 @@ export default function ChatPage({ mode }) {
           setRecording(false);
           return;
         }
-        const target = user.role !== "admin" && channel.startsWith("dm:") ? `dm:${user.id}` : channel;
+        const target = getSendChannel();
+        if (!target) return;
         await api.post("/messages/voice", { channel: target, audio_data: dataUrl, duration_sec: 0 });
         const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
         setMessages(data);
@@ -171,7 +178,6 @@ export default function ChatPage({ mode }) {
       rec.start();
       recRef.current = rec;
       setRecording(true);
-      // auto-stop after 30s
       setTimeout(() => { if (rec.state === "recording") rec.stop(); }, 30000);
     } catch (e) {
       alert("Microphone access denied or unavailable.");
