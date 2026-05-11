@@ -1,8 +1,8 @@
-"""Attach Motionholic OS workflow routes without rewriting server.py.
+"""Attach Motionholic OS workflow and account routes without rewriting server.py.
 
-This loader is intentionally defensive. It attaches the workflow API when the
-main /api router is included, and it also retries on first request in case the
-server module was not fully available during import.
+This loader is intentionally defensive. It attaches extension APIs when the
+main /api router is included, and retries on first request in case the server
+module was not fully available during import.
 """
 
 import sys
@@ -17,7 +17,7 @@ def _find_server_module():
     return sys.modules.get("server") or sys.modules.get("backend.server") or sys.modules.get("__main__")
 
 
-def _attach_workflow_router(app):
+def _attach_extension_routers(app):
     global _attached
     if _attached:
         return
@@ -28,9 +28,14 @@ def _attach_workflow_router(app):
             return
 
         from workflow_api import build_task_compat_router, build_workflow_router
+        from account_status import install_status_patch
+        from account_routes import build_account_router
+
+        install_status_patch(server)
 
         workflow_router = build_workflow_router(server)
         task_compat_router = build_task_compat_router(server)
+        account_router = build_account_router(server)
         existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
 
         if "/api/workflow/state" not in existing_paths:
@@ -39,21 +44,24 @@ def _attach_workflow_router(app):
         if "/api/tasks/{task_id}" not in existing_paths:
             _original_include_router(app, task_compat_router)
 
+        if "/api/account/users/invite" not in existing_paths:
+            _original_include_router(app, account_router)
+
         _attached = True
     except Exception:
-        # Keep the original API alive even if the workflow extension cannot load.
+        # Keep the original API alive even if an extension cannot load.
         pass
 
 
 def _patched_include_router(self, router, *args, **kwargs):
     result = _original_include_router(self, router, *args, **kwargs)
     if getattr(router, "prefix", None) == "/api":
-        _attach_workflow_router(self)
+        _attach_extension_routers(self)
     return result
 
 
 async def _patched_call(self, scope, receive, send):
-    _attach_workflow_router(self)
+    _attach_extension_routers(self)
     return await _original_call(self, scope, receive, send)
 
 
