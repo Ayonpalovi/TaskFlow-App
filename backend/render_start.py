@@ -1,11 +1,40 @@
 import os
 
+import requests
 import uvicorn
 import server
+import account_routes
 from account_routes import build_account_router
 from account_status import install_status_patch
 from starlette.responses import JSONResponse
 
+
+def send_resend_email(to_email, subject, body):
+    api_key = os.environ.get("RESEND_API_KEY")
+    sender = os.environ.get("EMAIL_FROM") or "Motionholic OS <onboarding@resend.dev>"
+
+    if not api_key:
+        print("Resend email skipped: RESEND_API_KEY is missing")
+        return False
+
+    try:
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
+            json={"from": sender, "to": [to_email], "subject": subject, "text": body},
+            timeout=15,
+        )
+        if 200 <= response.status_code < 300:
+            print(f"Resend email sent to {to_email}")
+            return True
+        print(f"Resend email failed: {response.status_code} {response.text}")
+        return False
+    except Exception as exc:
+        print(f"Resend email failed: {exc}")
+        return False
+
+
+account_routes.send_smtp_email = send_resend_email
 
 install_status_patch(server)
 existing_paths = {getattr(route, "path", "") for route in getattr(server.app, "routes", [])}
