@@ -11,6 +11,24 @@ function statusTone(status) {
   return "default";
 }
 
+function RoleTag({ role }) {
+  const isEditor = role === "editor";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+        isEditor
+          ? "border-blue-500/40 bg-blue-500/12 text-blue-300 shadow-[0_0_18px_rgba(0,81,255,.18)]"
+          : "border-violet-500/40 bg-violet-500/12 text-violet-300 shadow-[0_0_18px_rgba(139,92,246,.16)]"
+      }`}
+      title={isEditor ? "Editor account" : "Client account"}
+    >
+      <span className="text-[12px]">{isEditor ? "🎬" : "👤"}</span>
+      {isEditor ? "Editor" : "Client"}
+    </span>
+  );
+}
+
 function isUserOnline(user) {
   if (typeof user?.online === "boolean") return user.online;
   if (!user?.last_seen) return false;
@@ -211,7 +229,7 @@ export default function AdminUsers() {
                   </td>
                   <td className="p-3 text-zinc-400">{u.real_name}</td>
                   <td className="p-3 text-zinc-400 font-mono text-xs">{u.email}</td>
-                  <td className="p-3"><Badge tone={u.role}>{u.role}</Badge></td>
+                  <td className="p-3"><RoleTag role={u.role} /></td>
                   <td className="p-3 text-xs text-zinc-400 max-w-[220px] truncate">{(u.skills || []).join(", ") || "—"}</td>
                   <td className="p-3"><Badge tone={statusTone(status)}>{status}</Badge></td>
                   <td className="p-3">
