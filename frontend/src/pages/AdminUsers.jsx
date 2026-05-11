@@ -1,85 +1,188 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Layout, { PageHeader, Badge } from "../components/Layout";
 import { api, formatApiError } from "../lib/api";
+
+const BLUE = "#0051FF";
+
+function statusTone(status) {
+  if (status === "active") return "good";
+  if (status === "invited") return "blue";
+  if (status === "deactivated") return "bad";
+  return "default";
+}
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState("");
-  const [f, setF] = useState({ email: "", password: "", real_name: "", role: "editor", skills: "", avatar_url: "" });
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [f, setF] = useState({ email: "", real_name: "", role: "editor", skills: "", avatar_url: "", charge_per_project: 0 });
 
   const load = async () => {
     const { data } = await api.get("/users");
-    setUsers(data.filter(u => u.role !== "admin"));
+    setUsers(data.filter((u) => u.role !== "admin"));
   };
+
   useEffect(() => { load(); }, []);
 
-  const create = async () => {
+  const visibleUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return users.filter((u) => {
+      const status = u.status || "active";
+      const matchesStatus = filter === "all" || status === filter;
+      const haystack = `${u.real_name || ""} ${u.email || ""} ${u.anime_name || ""} ${u.role || ""}`.toLowerCase();
+      return matchesStatus && (!q || haystack.includes(q));
+    });
+  }, [users, filter, query]);
+
+  const invite = async () => {
     setErr("");
+    setNotice("");
+    setBusy(true);
     try {
-      await api.post("/users", { ...f, skills: f.skills.split(",").map(s => s.trim()).filter(Boolean) });
-      setOpen(false); setF({ email: "", password: "", real_name: "", role: "editor", skills: "", avatar_url: "" });
-      load();
-    } catch (e) { setErr(formatApiError(e?.response?.data?.detail)); }
+      const payload = {
+        ...f,
+        skills: f.skills.split(",").map((s) => s.trim()).filter(Boolean),
+        charge_per_project: Number(f.charge_per_project || 0),
+      };
+      const { data } = await api.post("/account/users/invite", payload);
+      setOpen(false);
+      setF({ email: "", real_name: "", role: "editor", skills: "", avatar_url: "", charge_per_project: 0 });
+      setNotice(data?.invite_url ? `Invite created. Copy setup link: ${data.invite_url}` : "Account invite created successfully.");
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail || e.message));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const remove = async (id) => {
-    if (!confirm("Delete user?")) return;
-    await api.delete(`/users/${id}`); load();
+  const deactivate = async (user) => {
+    const ok = confirm("Are you sure you want to deactivate this user? Their access will be blocked, but project history will stay safe.");
+    if (!ok) return;
+    setErr("");
+    setNotice("");
+    try {
+      await api.delete(`/account/users/${user.id}/deactivate`);
+      setNotice(`${user.email} has been deactivated. Project history was kept safe.`);
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail || e.message));
+    }
   };
 
-  const inp = "w-full bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm";
+  const reactivate = async (user) => {
+    setErr("");
+    setNotice("");
+    try {
+      await api.post(`/account/users/${user.id}/reactivate`);
+      setNotice(`${user.email} has been reactivated.`);
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail || e.message));
+    }
+  };
+
+  const copyInvite = async (user) => {
+    if (!user.invite_url) {
+      setNotice("Invite links are only shown right after creating a new invite.");
+      return;
+    }
+    await navigator.clipboard.writeText(user.invite_url);
+    setNotice("Invite link copied.");
+  };
+
+  const inp = "w-full bg-zinc-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500";
 
   return (
     <Layout allowed={["admin"]}>
-      <PageHeader label="Admin / Team" title="Team & Clients" subtitle="Manage editors and client accounts.">
-        <button data-testid="create-user-button" onClick={() => setOpen(true)} className="px-4 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200">+ New Account</button>
+      <PageHeader label="Admin / Team" title="Team & Clients" subtitle="Invite editors by email, deactivate accounts safely, and keep project history protected.">
+        <button data-testid="create-user-button" onClick={() => setOpen(true)} className="px-4 py-2 text-white text-sm font-medium rounded-xl shadow-[0_0_28px_rgba(0,81,255,.22)]" style={{ background: BLUE }}>+ Invite Account</button>
       </PageHeader>
 
-      <div className="border border-white/10 rounded-md bg-zinc-900/30 overflow-hidden">
+      {err && <div className="mb-4 border border-red-500/20 bg-red-500/10 text-red-300 rounded-xl px-4 py-3 text-sm">{err}</div>}
+      {notice && <div className="mb-4 border border-blue-500/20 bg-blue-500/10 text-blue-200 rounded-xl px-4 py-3 text-sm break-all">{notice}</div>}
+
+      <div className="grid md:grid-cols-[1fr,220px] gap-3 mb-4">
+        <input className={inp} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, email, anon name, role…" />
+        <select className={inp} value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <option value="all">All statuses</option>
+          <option value="invited">Invited</option>
+          <option value="active">Active</option>
+          <option value="deactivated">Deactivated</option>
+        </select>
+      </div>
+
+      <div className="border border-white/10 rounded-2xl bg-zinc-900/30 overflow-hidden shadow-2xl shadow-black/20">
         <table className="w-full text-sm">
           <thead className="bg-white/5">
             <tr className="text-left label-xs text-zinc-400">
-              <th className="p-3">Anon Name</th><th className="p-3">Real Name</th><th className="p-3">Email</th>
-              <th className="p-3">Role</th><th className="p-3">Skills</th><th className="p-3">Status</th><th className="p-3"></th>
+              <th className="p-3">Anon Name</th>
+              <th className="p-3">Real Name</th>
+              <th className="p-3">Email</th>
+              <th className="p-3">Role</th>
+              <th className="p-3">Skills</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Access</th>
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
-              <tr key={u.id} className="border-t border-white/5" data-testid={`user-row-${u.id}`}>
-                <td className="p-3 flex items-center gap-2">
-                  {u.avatar_url && <img src={u.avatar_url} className={`w-7 h-7 object-cover ${u.role === "editor" ? "rounded-md" : "rounded-full"}`} alt="" />}
-                  <span className="font-medium">{u.anime_name}</span>
-                </td>
-                <td className="p-3 text-zinc-400">{u.real_name}</td>
-                <td className="p-3 text-zinc-400 font-mono text-xs">{u.email}</td>
-                <td className="p-3"><Badge tone={u.role}>{u.role}</Badge></td>
-                <td className="p-3 text-xs text-zinc-400">{(u.skills || []).join(", ") || "—"}</td>
-                <td className="p-3">{u.online ? <span className="text-emerald-400 text-xs">● online</span> : <span className="text-zinc-600 text-xs">○ offline</span>}</td>
-                <td className="p-3"><button onClick={() => remove(u.id)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button></td>
-              </tr>
-            ))}
+            {visibleUsers.map((u) => {
+              const status = u.status || "active";
+              return (
+                <tr key={u.id} className="border-t border-white/5" data-testid={`user-row-${u.id}`}>
+                  <td className="p-3 flex items-center gap-2">
+                    {u.avatar_url && <img src={u.avatar_url} className={`w-7 h-7 object-cover ${u.role === "editor" ? "rounded-md" : "rounded-full"}`} alt="" />}
+                    <span className="font-medium">{u.anime_name}</span>
+                  </td>
+                  <td className="p-3 text-zinc-400">{u.real_name}</td>
+                  <td className="p-3 text-zinc-400 font-mono text-xs">{u.email}</td>
+                  <td className="p-3"><Badge tone={u.role}>{u.role}</Badge></td>
+                  <td className="p-3 text-xs text-zinc-400 max-w-[220px] truncate">{(u.skills || []).join(", ") || "—"}</td>
+                  <td className="p-3"><Badge tone={statusTone(status)}>{status}</Badge></td>
+                  <td className="p-3">
+                    {status === "deactivated" ? (
+                      <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
+                    ) : (
+                      <button onClick={() => deactivate(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Deactivate</button>
+                    )}
+                    {status === "invited" && <button onClick={() => copyInvite(u)} className="ml-3 text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
+                  </td>
+                </tr>
+              );
+            })}
+            {visibleUsers.length === 0 && (
+              <tr><td colSpan="7" className="p-8 text-center text-zinc-500">No users match this view.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
 
       {open && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setOpen(false)}>
-          <div className="bg-zinc-950 border border-white/10 rounded-md w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-semibold mb-4">Create Account</h3>
+          <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-5">
+              <div className="label-xs text-zinc-500 mb-2">Secure invite</div>
+              <h3 className="text-xl font-semibold">Invite Account</h3>
+              <p className="text-sm text-zinc-500 mt-1">No manual password. The user sets their own password from the invite link.</p>
+            </div>
             <div className="space-y-3">
-              <input data-testid="new-user-email" className={inp} placeholder="Email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} />
-              <input data-testid="new-user-password" type="password" className={inp} placeholder="Password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} />
-              <input data-testid="new-user-name" className={inp} placeholder="Real Name" value={f.real_name} onChange={e => setF({ ...f, real_name: e.target.value })} />
-              <select data-testid="new-user-role" className={inp} value={f.role} onChange={e => setF({ ...f, role: e.target.value })}>
-                <option value="editor">Editor</option><option value="client">Client</option>
+              <input data-testid="new-user-email" className={inp} placeholder="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+              <input data-testid="new-user-name" className={inp} placeholder="Real Name" value={f.real_name} onChange={(e) => setF({ ...f, real_name: e.target.value })} />
+              <select data-testid="new-user-role" className={inp} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+                <option value="editor">Editor</option>
+                <option value="client">Client</option>
               </select>
-              <input className={inp} placeholder="Skills (comma separated)" value={f.skills} onChange={e => setF({ ...f, skills: e.target.value })} />
-              <input className={inp} placeholder="Avatar URL (optional)" value={f.avatar_url} onChange={e => setF({ ...f, avatar_url: e.target.value })} />
+              <input className={inp} placeholder="Skills (comma separated)" value={f.skills} onChange={(e) => setF({ ...f, skills: e.target.value })} />
+              <input className={inp} placeholder="Avatar URL (optional)" value={f.avatar_url} onChange={(e) => setF({ ...f, avatar_url: e.target.value })} />
+              <input type="number" className={inp} placeholder="Charge per project" value={f.charge_per_project} onChange={(e) => setF({ ...f, charge_per_project: e.target.value })} />
               {err && <div className="text-red-400 text-sm">{err}</div>}
               <div className="flex gap-2 pt-2">
-                <button onClick={() => setOpen(false)} className="flex-1 border border-white/10 rounded-md py-2 text-sm hover:bg-white/5">Cancel</button>
-                <button data-testid="submit-create-user" onClick={create} className="flex-1 bg-white text-black rounded-md py-2 text-sm font-medium hover:bg-zinc-200">Create</button>
+                <button onClick={() => setOpen(false)} className="flex-1 border border-white/10 rounded-xl py-2 text-sm hover:bg-white/5">Cancel</button>
+                <button data-testid="submit-create-user" onClick={invite} disabled={busy} className="flex-1 text-white rounded-xl py-2 text-sm font-medium disabled:opacity-50" style={{ background: BLUE }}>{busy ? "Sending…" : "Send Invite"}</button>
               </div>
             </div>
           </div>
