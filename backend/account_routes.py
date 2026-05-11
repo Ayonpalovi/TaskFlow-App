@@ -206,4 +206,21 @@ def build_account_router(server):
         await server.create_notification(admin["id"], "user_reactivated", f"{target.get('email')} was reactivated")
         return {"ok": True, "email_sent": email_sent, "user": visible_user(server, target, viewer_role="admin")}
 
+    @router.delete("/account/users/{user_id}/delete")
+    async def delete_account(user_id: str, admin: dict = Depends(server.require_role("admin"))):
+        target = await server.db.users.find_one({"id": user_id})
+        if not target:
+            raise HTTPException(404, "User not found")
+        if target.get("role") == "admin":
+            raise HTTPException(400, "Admin accounts cannot be deleted here")
+
+        await activity(server, admin["id"], "user_deleted", target, {"role": target.get("role")})
+        result = await server.db.users.delete_one({"id": user_id})
+        if result.deleted_count == 0:
+            raise HTTPException(404, "User not found")
+
+        await server.db.notifications.delete_many({"user_id": user_id})
+        await server.create_notification(admin["id"], "user_deleted", f"{target.get('email')} was deleted", body="The login account was removed. Existing project records were not deleted.")
+        return {"ok": True, "deleted_user_id": user_id, "email": target.get("email")}
+
     return router
