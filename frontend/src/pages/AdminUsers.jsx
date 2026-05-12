@@ -60,15 +60,19 @@ function formatLastSeen(value) {
   }
 }
 
+const blankForm = { email: "", real_name: "", role: "editor", skills: "", avatar_url: "", charge_per_project: 0 };
+
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [f, setF] = useState({ email: "", real_name: "", role: "editor", skills: "", avatar_url: "", charge_per_project: 0 });
+  const [f, setF] = useState(blankForm);
+  const [editF, setEditF] = useState(blankForm);
 
   const load = async () => {
     const { data } = await api.get("/users");
@@ -103,7 +107,7 @@ export default function AdminUsers() {
       };
       const { data } = await api.post("/account/users/invite", payload);
       setOpen(false);
-      setF({ email: "", real_name: "", role: "editor", skills: "", avatar_url: "", charge_per_project: 0 });
+      setF(blankForm);
 
       if (data?.email_sent) {
         setNotice(`Invite email sent successfully to ${payload.email}.`);
@@ -113,6 +117,43 @@ export default function AdminUsers() {
         setNotice("Account invite created successfully.");
       }
 
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail || e.message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openEdit = (user) => {
+    setErr("");
+    setNotice("");
+    setEditingUser(user);
+    setEditF({
+      email: user.email || "",
+      real_name: user.real_name || "",
+      role: user.role || "editor",
+      skills: (user.skills || []).join(", "),
+      avatar_url: user.avatar_url || "",
+      charge_per_project: user.charge_per_project || 0,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingUser?.id) return;
+    setErr("");
+    setNotice("");
+    setBusy(true);
+    try {
+      const payload = {
+        ...editF,
+        skills: editF.skills.split(",").map((s) => s.trim()).filter(Boolean),
+        charge_per_project: Number(editF.charge_per_project || 0),
+      };
+      await api.patch(`/account/users/${editingUser.id}`, payload);
+      setEditingUser(null);
+      setEditF(blankForm);
+      setNotice(`${payload.email} was updated successfully.`);
       await load();
     } catch (e) {
       setErr(formatApiError(e?.response?.data?.detail || e.message));
@@ -247,6 +288,7 @@ export default function AdminUsers() {
                   </td>
                   <td className="p-3">
                     <div className="flex items-center gap-3 flex-wrap">
+                      <button onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
                       {status === "deactivated" ? (
                         <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
                       ) : (
@@ -283,11 +325,39 @@ export default function AdminUsers() {
               </select>
               <input className={inp} placeholder="Skills (comma separated)" value={f.skills} onChange={(e) => setF({ ...f, skills: e.target.value })} />
               <input className={inp} placeholder="Avatar URL (optional)" value={f.avatar_url} onChange={(e) => setF({ ...f, avatar_url: e.target.value })} />
-              <input type="number" className={inp} placeholder="Charge per project" value={f.charge_per_project} onChange={(e) => setF({ ...f, charge_per_project: e.target.value })} />
+              {f.role === "editor" && <input type="number" className={inp} placeholder="Editor Charge Per Project (€)" value={f.charge_per_project} onChange={(e) => setF({ ...f, charge_per_project: e.target.value })} />}
               {err && <div className="text-red-400 text-sm">{err}</div>}
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setOpen(false)} className="flex-1 border border-white/10 rounded-xl py-2 text-sm hover:bg-white/5">Cancel</button>
                 <button data-testid="submit-create-user" onClick={invite} disabled={busy} className="flex-1 text-white rounded-xl py-2 text-sm font-medium disabled:opacity-50" style={{ background: BLUE }}>{busy ? "Sending…" : "Send Invite"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setEditingUser(null)}>
+          <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-5">
+              <div className="label-xs text-zinc-500 mb-2">Admin edit</div>
+              <h3 className="text-xl font-semibold">Edit Profile</h3>
+              <p className="text-sm text-zinc-500 mt-1">Update account details without deleting project history.</p>
+            </div>
+            <div className="space-y-3">
+              <input className={inp} placeholder="Email" value={editF.email} onChange={(e) => setEditF({ ...editF, email: e.target.value })} />
+              <input className={inp} placeholder="Real Name" value={editF.real_name} onChange={(e) => setEditF({ ...editF, real_name: e.target.value })} />
+              <select className={inp} value={editF.role} onChange={(e) => setEditF({ ...editF, role: e.target.value })}>
+                <option value="editor">Editor</option>
+                <option value="client">Client</option>
+              </select>
+              <input className={inp} placeholder="Skills (comma separated)" value={editF.skills} onChange={(e) => setEditF({ ...editF, skills: e.target.value })} />
+              <input className={inp} placeholder="Avatar URL (optional)" value={editF.avatar_url} onChange={(e) => setEditF({ ...editF, avatar_url: e.target.value })} />
+              {editF.role === "editor" && <input type="number" className={inp} placeholder="Editor Charge Per Project (€)" value={editF.charge_per_project} onChange={(e) => setEditF({ ...editF, charge_per_project: e.target.value })} />}
+              {err && <div className="text-red-400 text-sm">{err}</div>}
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setEditingUser(null)} className="flex-1 border border-white/10 rounded-xl py-2 text-sm hover:bg-white/5">Cancel</button>
+                <button onClick={saveEdit} disabled={busy} className="flex-1 text-white rounded-xl py-2 text-sm font-medium disabled:opacity-50" style={{ background: BLUE }}>{busy ? "Saving…" : "Save Changes"}</button>
               </div>
             </div>
           </div>
