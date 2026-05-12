@@ -21,6 +21,15 @@ class AccountInviteIn(BaseModel):
     charge_per_project: float = 0
 
 
+class AccountUpdateIn(BaseModel):
+    email: Optional[EmailStr] = None
+    real_name: Optional[str] = None
+    role: Optional[Literal["editor", "client"]] = None
+    skills: Optional[List[str]] = None
+    avatar_url: Optional[str] = None
+    charge_per_project: Optional[float] = None
+
+
 class AcceptInviteIn(BaseModel):
     token: str
     password: str
@@ -131,6 +140,54 @@ def build_account_router(server):
         result["invite_url"] = invite_link
         result["email_sent"] = email_sent
         return result
+
+    @router.patch("/account/users/{user_id}")
+    async def update_account(user_id: str, data: AccountUpdateIn, admin: dict = Depends(server.require_role("admin"))):
+        target = await server.db.users.find_one({"id": user_id})
+        if not target:
+            raise HTTPException(404, "User not found")
+        if target.get("role") == "admin":
+            raise HTTPException(400, "Admin accounts cannot be changed here")
+
+        updates = {}
+
+        if data.email is not None:
+            email = data.email.lower()
+            existing = await server.db.users.find_one({"email": email, "id": {"$ne": user_id}})
+            if existing:
+                raise HTTPException(400, "Email already exists")
+            updates["email"] = email
+
+        if data.real_name is not None:
+            updates["real_name"] = data.real_name
+
+        if data.role is not None:
+            updates["role"] = data.role
+
+        if data.skills is not None:
+            updates["skills"] = data.skills
+
+        if data.avatar_url is not None:
+            updates["avatar_url"] = data.avatar_url
+
+        if data.charge_per_project is not None:
+            updates["charge_per_project"] = data.charge_per_project
+
+        if updates.get("role") == "client":
+            updates["anime_name"] = updates.get("real_name") or target.get("real_name") or target.get("anime_name")
+        elif updates.get("role") == "editor" and target.get("role") != "editor":
+            updates["anime_name"] = server.generate_anime_name()
+
+        if not updates:
+            raise HTTPException(400, "No changes provided")
+
+        updates["updated_at"] = now_iso()
+        await server.db.users.update_one({"id": user_id}, {"$set": updates})
+        target.update(updates)
+
+        await activity(server, admin["id"], "user_updated", target, {"updated_fields": list(updates.keys())})
+        await server.create_notification(admin["id"], "user_updated", f"{target.get('email')} was updated")
+        return {"ok": True, "user": visible_user(server, target, viewer_role="admin")}
 
     @router.post("/auth/accept-invite")
     async def accept_invite(data: AcceptInviteIn, response: Response):
