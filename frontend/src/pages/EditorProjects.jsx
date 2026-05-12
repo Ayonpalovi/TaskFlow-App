@@ -17,6 +17,12 @@ const columns = [
   { key: "completed", label: "Completed", empty: "No completed projects" },
 ];
 
+function normalizeUrl(url) {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 function InfoRow({ label, value }) {
   return (
     <div>
@@ -27,12 +33,14 @@ function InfoRow({ label, value }) {
 }
 
 function LinkRow({ label, url }) {
+  const href = normalizeUrl(url);
+
   return (
     <div>
       <span className="text-zinc-500">{label}: </span>
-      {url ? (
+      {href ? (
         <a
-          href={url}
+          href={href}
           target="_blank"
           rel="noreferrer"
           className="text-blue-400 hover:underline break-all"
@@ -271,17 +279,21 @@ export default function EditorProjects() {
 
                 {(detail.drafts || []).length > 0 ? (
                   <div className="space-y-3">
-                    {(detail.drafts || []).map((draft) => (
-                      <div key={draft.id} className="border border-white/10 rounded-md p-4 text-sm">
-                        <a href={draft.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline break-all">
-                          {draft.url}
-                        </a>
-                        {draft.note && <div className="text-zinc-400 mt-2">{draft.note}</div>}
-                        <div className="text-xs text-zinc-600 mt-2 font-mono">
-                          Uploaded {draft.uploaded_at?.slice(0, 10)}
+                    {(detail.drafts || []).map((draft) => {
+                      const draftHref = normalizeUrl(draft.url);
+
+                      return (
+                        <div key={draft.id} className="border border-white/10 rounded-md p-4 text-sm">
+                          <a href={draftHref} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline break-all">
+                            {draft.url}
+                          </a>
+                          {draft.note && <div className="text-zinc-400 mt-2">{draft.note}</div>}
+                          <div className="text-xs text-zinc-600 mt-2 font-mono">
+                            Uploaded {draft.uploaded_at?.slice(0, 10)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-sm text-zinc-500">No drafts yet.</div>
