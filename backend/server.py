@@ -857,28 +857,7 @@ async def send_message(data: MessageIn, user: dict = Depends(get_current_user)):
 @api.get("/messages")
 async def list_messages(channel: str, user: dict = Depends(get_current_user)):
     # Permission check
-    if channel == "group":
-        if user["role"] == "client":
-            raise HTTPException(403, "Forbidden")
-        ch_q = "group"
-    elif channel.startswith("dm:"):
-    other_id = channel.split("dm:", 1)[1]
-
-    if user["role"] == "admin":
-        other = await db.users.find_one({"id": other_id})
-        if not other:
-            raise HTTPException(404, "User not found")
-        if other["role"] not in ["client", "editor"]:
-            raise HTTPException(403, "Admin can only view client/editor DMs")
-        channel = f"dm:{other_id}"
-
-    elif user["role"] in ["client", "editor"]:
-        channel = f"dm:{user['id']}"
-
-    else:
-        raise HTTPException(403, "You do not have access to this conversation")
-else:
-    raise HTTPException(400, "Invalid channel")
+    ch_q = await normalize_message_channel(user, channel)
 
     # For DMs, we store sender's choice; normalize: when non-admin sends, channel=dm:<their_id>; admin sends dm:<other_id>
     # So fetch all messages where channel matches the normalized key
