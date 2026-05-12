@@ -64,6 +64,7 @@ export default function ChatPage({ mode }) {
   const [input, setInput] = useState("");
   const [wsConnected, setWsConnected] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [sending, setSending] = useState(false);
   const wsRef = useRef(null);
   const endRef = useRef(null);
   const pollRef = useRef(null);
@@ -74,6 +75,12 @@ export default function ChatPage({ mode }) {
     if (!channel || !user) return null;
     if (user.role !== "admin" && channel.startsWith("dm:")) return `dm:${user.id}`;
     return channel;
+  };
+
+  const refreshMessages = async () => {
+    if (!channel) return;
+    const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
+    setMessages(data);
   };
 
   useEffect(() => {
@@ -124,16 +131,18 @@ export default function ChatPage({ mode }) {
   const send = async () => {
     const content = input.trim();
     const target = getSendChannel();
-    if (!content || !target || !user) return;
+    if (!content || !target || !user || sending) return;
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ channel: target, content, type: "text" }));
+    setSending(true);
+    try {
+      await api.post("/messages", { channel: target, content });
       setInput("");
-    } else {
-      await api.post("/messages", { channel: target, content, type: "text" });
-      setInput("");
-      const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
-      setMessages(data);
+      await refreshMessages();
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+      alert(typeof detail === "string" ? detail : "Could not send message. Please try again.");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -171,8 +180,7 @@ export default function ChatPage({ mode }) {
         const target = getSendChannel();
         if (!target) return;
         await api.post("/messages/voice", { channel: target, audio_data: dataUrl, duration_sec: 0 });
-        const { data } = await api.get(`/messages?channel=${encodeURIComponent(channel)}`);
-        setMessages(data);
+        await refreshMessages();
         setRecording(false);
       };
       rec.start();
@@ -246,10 +254,10 @@ export default function ChatPage({ mode }) {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
               placeholder={channel ? "Type a message…" : "Select a conversation"}
-              disabled={!channel}
+              disabled={!channel || sending}
               className="flex-1 bg-zinc-900 border border-white/10 rounded-md px-3 py-2 text-sm"
             />
-            <button data-testid="chat-send-button" onClick={send} disabled={!channel || !input.trim()} className="bg-white text-black rounded-md px-4 py-2 text-sm font-medium hover:bg-zinc-200 disabled:opacity-40">Send</button>
+            <button data-testid="chat-send-button" onClick={send} disabled={!channel || !input.trim() || sending} className="bg-white text-black rounded-md px-4 py-2 text-sm font-medium hover:bg-zinc-200 disabled:opacity-40">{sending ? "Sending…" : "Send"}</button>
           </div>
         </div>
       </div>
