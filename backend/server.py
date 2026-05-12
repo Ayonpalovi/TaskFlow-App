@@ -206,24 +206,22 @@ def is_online(u: dict) -> bool:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-    async def normalize_message_channel(user: dict, channel: str) -> str:
+
+async def normalize_message_channel(user: dict, channel: str) -> str:
     if not channel:
         raise HTTPException(400, "Missing channel")
 
-    # Editors group: admin + editors only
     if channel == "group":
         if user["role"] in ["admin", "editor"]:
             return "group"
         raise HTTPException(403, "Only admin and editors can use the editors group")
 
-    # Direct messages
     if channel.startswith("dm:"):
         target_id = channel.split("dm:", 1)[1]
 
         if not target_id:
             raise HTTPException(400, "Invalid DM channel")
 
-        # Admin can DM clients and editors
         if user["role"] == "admin":
             target_user = await db.users.find_one({"id": target_id}, {"_id": 0})
             if not target_user:
@@ -232,14 +230,7 @@ def now_iso() -> str:
                 raise HTTPException(403, "Admin can only DM clients or editors")
             return f"dm:{target_id}"
 
-        # Client can DM admin.
-        # Store the conversation under dm:<client_id>
-        if user["role"] == "client":
-            return f"dm:{user['id']}"
-
-        # Editor can DM admin.
-        # Store the conversation under dm:<editor_id>
-        if user["role"] == "editor":
+        if user["role"] in ["client", "editor"]:
             return f"dm:{user['id']}"
 
     raise HTTPException(403, "You do not have access to this conversation")
