@@ -1293,18 +1293,7 @@ async def react_message(msg_id: str, data: ReactionIn, user: dict = Depends(get_
 async def send_voice_message(data: VoiceMessageIn, user: dict = Depends(get_current_user)):
     if len(data.audio_data) > 700000:
         raise HTTPException(400, "Audio too large (max ~500KB)")
-    ch = data.channel
-    if ch == "group":
-        if user["role"] == "client":
-            raise HTTPException(403, "Forbidden")
-        ch_q = "group"
-    elif ch.startswith("dm:"):
-        if user["role"] == "admin":
-            ch_q = ch
-        else:
-            ch_q = f"dm:{user['id']}"
-    else:
-        raise HTTPException(400, "Invalid channel")
+    ch_q = await normalize_message_channel(user, data.channel)
     msg = {
         "id": str(uuid.uuid4()),
         "channel": ch_q,
