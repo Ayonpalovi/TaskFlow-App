@@ -839,30 +839,7 @@ async def list_reviews(editor_id: Optional[str] = None, user: dict = Depends(get
 @api.post("/messages")
 async def send_message(data: MessageIn, user: dict = Depends(get_current_user)):
     # Permission: group = editors + admin only. dm = admin <-> editor or admin <-> client
-    ch = data.channel
-    if ch == "group":
-        if user["role"] == "client":
-            raise HTTPException(403, "Clients cannot use group chat")
-   elif ch.startswith("dm:"):
-    other_id = ch.split("dm:", 1)[1]
-
-    if user["role"] == "admin":
-        other = await db.users.find_one({"id": other_id})
-        if not other:
-            raise HTTPException(404, "User not found")
-        if other["role"] not in ["client", "editor"]:
-            raise HTTPException(403, "Admin can only DM clients or editors")
-        ch = f"dm:{other_id}"
-
-    elif user["role"] in ["client", "editor"]:
-        # Clients and editors can only message the admin.
-        # Their conversation is stored as dm:<their own user id>
-        ch = f"dm:{user['id']}"
-
-    else:
-        raise HTTPException(403, "You do not have access to this conversation")
-else:
-    raise HTTPException(400, "Invalid channel")
+    ch = await normalize_message_channel(user, data.channel)
 
     msg = {
         "id": str(uuid.uuid4()),
