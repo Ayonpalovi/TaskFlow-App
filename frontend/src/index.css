@@ -89,3 +89,341 @@ h1, h2, h3, h4, h5, h6 {
     pointer-events: none;
     z-index: 1;
 }
+
+/* Motionholic OS theme system */
+:root,
+html[data-mh-theme="dark"] {
+    --mh-theme-bg: #05070f;
+    --mh-theme-bg-end: #030409;
+    --mh-theme-text: #ffffff;
+    --mh-theme-muted: rgba(255,255,255,0.62);
+    --mh-theme-faint: rgba(255,255,255,0.42);
+    --mh-theme-card: rgba(255,255,255,0.045);
+    --mh-theme-card-strong: rgba(12,15,24,0.76);
+    --mh-theme-border: rgba(255,255,255,0.08);
+    --mh-theme-sidebar: rgba(5,7,15,0.74);
+    --mh-theme-sidebar-strong: rgba(3,4,9,0.86);
+    --mh-theme-input: rgba(7,10,18,0.68);
+    --mh-theme-grid: rgba(255,255,255,0.12);
+    --mh-theme-shadow: 0 20px 60px rgba(0,0,0,0.34);
+    --mh-theme-blue-shadow: 0 18px 50px rgba(0,81,255,0.12);
+    --mh-theme-background:
+        radial-gradient(circle at top left, rgba(0,81,255,0.20), transparent 35%),
+        radial-gradient(circle at top right, rgba(80,120,255,0.12), transparent 30%),
+        linear-gradient(180deg, #05070f 0%, #080a12 45%, #030409 100%);
+    --mh-theme-blob:
+        radial-gradient(circle at 18% 18%, rgba(0,81,255,0.18), transparent 24%),
+        radial-gradient(circle at 78% 22%, rgba(86,127,255,0.12), transparent 22%),
+        radial-gradient(circle at 54% 92%, rgba(0,81,255,0.10), transparent 32%);
+}
+
+html[data-mh-theme="light"] {
+    --background: 218 44% 97%;
+    --foreground: 221 39% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    --primary: 219 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 32% 94%;
+    --secondary-foreground: 221 39% 11%;
+    --muted: 218 30% 94%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 218 32% 94%;
+    --accent-foreground: 221 39% 11%;
+    --border: 220 16% 88%;
+    --input: 220 16% 88%;
+    --ring: 219 100% 50%;
+    --mh-bg: #f8faff;
+    --mh-text: #111827;
+    --mh-muted: #6B7280;
+    --mh-border: rgba(0,0,0,0.08);
+    --mh-soft-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    --mh-blue-shadow: 0 0 0 1px rgba(0,81,255,0.12), 0 18px 44px rgba(0,81,255,0.12);
+    --mh-theme-bg: #f8faff;
+    --mh-theme-bg-end: #ffffff;
+    --mh-theme-text: #111827;
+    --mh-theme-muted: #6B7280;
+    --mh-theme-faint: #8A94A6;
+    --mh-theme-card: rgba(255,255,255,0.72);
+    --mh-theme-card-strong: rgba(255,255,255,0.84);
+    --mh-theme-border: rgba(0,0,0,0.08);
+    --mh-theme-sidebar: rgba(255,255,255,0.72);
+    --mh-theme-sidebar-strong: rgba(248,250,255,0.88);
+    --mh-theme-input: rgba(255,255,255,0.74);
+    --mh-theme-grid: rgba(17,24,39,0.12);
+    --mh-theme-shadow: 0 18px 45px rgba(15,23,42,0.08);
+    --mh-theme-blue-shadow: 0 18px 44px rgba(0,81,255,0.12);
+    --mh-theme-background:
+        radial-gradient(circle at top left, rgba(0,81,255,0.12), transparent 35%),
+        radial-gradient(circle at top right, rgba(120,160,255,0.10), transparent 30%),
+        linear-gradient(180deg, #f8faff 0%, #f3f6fb 45%, #ffffff 100%);
+    --mh-theme-blob:
+        radial-gradient(circle at 16% 18%, rgba(0,81,255,0.12), transparent 24%),
+        radial-gradient(circle at 82% 20%, rgba(99,139,255,0.10), transparent 22%),
+        radial-gradient(circle at 58% 92%, rgba(0,81,255,0.075), transparent 34%);
+}
+
+html[data-mh-theme] body,
+html[data-mh-theme] #root {
+    background: var(--mh-theme-bg) !important;
+    color: var(--mh-theme-text) !important;
+    transition: background 300ms ease, color 300ms ease;
+}
+
+html[data-mh-theme] body #root .App {
+    background: var(--mh-theme-background) !important;
+    color: var(--mh-theme-text) !important;
+    transition: background 300ms ease, color 300ms ease;
+}
+
+html[data-mh-theme] body #root .App::after {
+    display: none !important;
+    background: none !important;
+    background-image: none !important;
+    animation: none !important;
+}
+
+html[data-mh-theme] body #root .App::before {
+    display: block !important;
+    z-index: -1 !important;
+    background: var(--mh-theme-blob) !important;
+    filter: blur(22px) saturate(130%) !important;
+    opacity: 1 !important;
+    transform: translateZ(0);
+}
+
+html[data-mh-theme] body #root .App,
+html[data-mh-theme] body #root .App *,
+html[data-mh-theme] body #root .App *::before,
+html[data-mh-theme] body #root .App *::after {
+    transition-property: background, background-color, border-color, color, box-shadow, opacity, transform, fill, stroke;
+    transition-duration: 300ms;
+    transition-timing-function: ease;
+}
+
+html[data-mh-theme] body #root .App h1,
+html[data-mh-theme] body #root .App h2,
+html[data-mh-theme] body #root .App h3,
+html[data-mh-theme] body #root .App h4,
+html[data-mh-theme] body #root .App h5,
+html[data-mh-theme] body #root .App h6,
+html[data-mh-theme] body #root .App .text-white,
+html[data-mh-theme] body #root .App .text-zinc-100,
+html[data-mh-theme] body #root .App .text-zinc-200,
+html[data-mh-theme] body #root .App .text-zinc-300 {
+    color: var(--mh-theme-text) !important;
+}
+
+html[data-mh-theme] body #root .App p,
+html[data-mh-theme] body #root .App .label-xs,
+html[data-mh-theme] body #root .App .text-zinc-400,
+html[data-mh-theme] body #root .App .text-zinc-500,
+html[data-mh-theme] body #root .App .text-zinc-600,
+html[data-mh-theme] body #root .App .text-zinc-700 {
+    color: var(--mh-theme-muted) !important;
+}
+
+html[data-mh-theme] body #root .App aside,
+html[data-mh-theme] body #root .App header,
+html[data-mh-theme] body #root .App .fixed.inset-0.z-50 > div,
+html[data-mh-theme] body #root .App .fixed.inset-0.z-50 aside {
+    background: linear-gradient(180deg, var(--mh-theme-sidebar), var(--mh-theme-sidebar-strong)) !important;
+    border-color: var(--mh-theme-border) !important;
+    box-shadow: var(--mh-theme-shadow) !important;
+    backdrop-filter: blur(26px) saturate(150%) !important;
+    -webkit-backdrop-filter: blur(26px) saturate(150%) !important;
+}
+
+html[data-mh-theme] body #root .App main [class*="border-white/10"],
+html[data-mh-theme] body #root .App main [class*="border-zinc"],
+html[data-mh-theme] body #root .App main [class*="border-blue"],
+html[data-mh-theme] body #root .App main [class*="border-purple"],
+html[data-mh-theme] body #root .App main [class*="border-cyan"],
+html[data-mh-theme] body #root .App main [class*="border-emerald"],
+html[data-mh-theme] body #root .App main [class*="border-amber"],
+html[data-mh-theme] body #root .App main [class*="border-red"],
+html[data-mh-theme] body #root .App .card-hover,
+html[data-mh-theme] body #root .App [data-testid*="panel"],
+html[data-mh-theme] body #root .App [data-testid*="card"],
+html[data-mh-theme] body #root .App [data-testid^="kanban-column-"] {
+    border-color: var(--mh-theme-border) !important;
+}
+
+html[data-mh-theme] body #root .App main [class*="bg-zinc-900/30"],
+html[data-mh-theme] body #root .App main [class*="bg-zinc-900/40"],
+html[data-mh-theme] body #root .App main [class*="bg-black/20"],
+html[data-mh-theme] body #root .App main [class*="bg-zinc-800"],
+html[data-mh-theme] body #root .App main [class*="bg-zinc-950"],
+html[data-mh-theme] body #root .App .card-hover,
+html[data-mh-theme] body #root .App [data-testid*="panel"],
+html[data-mh-theme] body #root .App [data-testid*="card"],
+html[data-mh-theme] body #root .App [data-testid^="kanban-column-"] {
+    background: linear-gradient(145deg, var(--mh-theme-card), rgba(0,81,255,0.035)) !important;
+    box-shadow: var(--mh-theme-shadow), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+    backdrop-filter: blur(22px) saturate(145%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(145%) !important;
+}
+
+html[data-mh-theme] body #root .App input,
+html[data-mh-theme] body #root .App textarea,
+html[data-mh-theme] body #root .App select {
+    background: var(--mh-theme-input) !important;
+    color: var(--mh-theme-text) !important;
+    border-color: var(--mh-theme-border) !important;
+}
+
+html[data-mh-theme] body #root .App input::placeholder,
+html[data-mh-theme] body #root .App textarea::placeholder {
+    color: var(--mh-theme-faint) !important;
+}
+
+html[data-mh-theme] body #root .App aside nav a {
+    color: var(--mh-theme-muted) !important;
+}
+
+html[data-mh-theme] body #root .App aside nav a:hover {
+    color: var(--mh-theme-text) !important;
+    background: rgba(0,81,255,0.075) !important;
+    border-color: rgba(0,81,255,0.18) !important;
+}
+
+html[data-mh-theme] body #root .App aside nav a[aria-current="page"] {
+    color: #ffffff !important;
+    background: linear-gradient(135deg, rgba(0,81,255,0.86), rgba(0,81,255,0.52)) !important;
+    border-color: rgba(0,81,255,0.58) !important;
+    box-shadow: 0 14px 34px rgba(0,81,255,0.20), inset 0 1px 0 rgba(255,255,255,0.20) !important;
+}
+
+html[data-mh-theme] body #root .App aside nav a[aria-current="page"] span,
+html[data-mh-theme] body #root .App aside nav a[aria-current="page"] span:first-child {
+    color: #ffffff !important;
+}
+
+html[data-mh-theme] body #root .App button[class*="border-white/10"],
+html[data-mh-theme] body #root .App a[class*="border-white/10"] {
+    background: var(--mh-theme-card) !important;
+    border-color: var(--mh-theme-border) !important;
+    color: var(--mh-theme-text) !important;
+}
+
+html[data-mh-theme] body #root .App .bg-white.text-black,
+html[data-mh-theme] body #root .App button.bg-white,
+html[data-mh-theme] body #root .App a.bg-white,
+html[data-mh-theme] body #root .App [data-testid="chat-send-button"] {
+    background: linear-gradient(135deg, #0051FF, #2D71FF) !important;
+    color: #ffffff !important;
+    border-color: rgba(0,81,255,0.55) !important;
+    box-shadow: 0 14px 34px rgba(0,81,255,0.24), inset 0 1px 0 rgba(255,255,255,0.24) !important;
+}
+
+html[data-mh-theme] body #root .App th,
+html[data-mh-theme] body #root .App td {
+    border-color: var(--mh-theme-border) !important;
+}
+
+html[data-mh-theme] body #root .App td {
+    background: var(--mh-theme-card) !important;
+    color: var(--mh-theme-text) !important;
+}
+
+html[data-mh-theme] body #root .App .recharts-default-tooltip {
+    background: var(--mh-theme-card-strong) !important;
+    border-color: var(--mh-theme-border) !important;
+    color: var(--mh-theme-text) !important;
+}
+
+html[data-mh-theme] body #root .App .recharts-cartesian-axis-tick-value,
+html[data-mh-theme] body #root .App .recharts-legend-item-text {
+    fill: var(--mh-theme-muted) !important;
+    color: var(--mh-theme-muted) !important;
+}
+
+html[data-mh-theme] body #root .App .recharts-cartesian-grid line,
+html[data-mh-theme] body #root .App .recharts-polar-grid-angle line,
+html[data-mh-theme] body #root .App .recharts-polar-grid-concentric path {
+    stroke: var(--mh-theme-grid) !important;
+}
+
+html[data-mh-theme="light"] body #root .App .bg-black,
+html[data-mh-theme="light"] body #root .App .bg-zinc-800,
+html[data-mh-theme="light"] body #root .App .bg-zinc-900,
+html[data-mh-theme="light"] body #root .App .bg-zinc-950 {
+    background-color: rgba(255,255,255,0.72) !important;
+}
+
+html[data-mh-theme="light"] body #root .App .border-white\/10,
+html[data-mh-theme="light"] body #root .App .border-white\/5,
+html[data-mh-theme="light"] body #root .App .border-zinc-700\/40 {
+    border-color: rgba(0,0,0,0.08) !important;
+}
+
+html[data-mh-theme="light"] body #root .App [class*="bg-blue-500/10"],
+html[data-mh-theme="light"] body #root .App [class*="bg-emerald-500/10"],
+html[data-mh-theme="light"] body #root .App [class*="bg-amber-500/10"],
+html[data-mh-theme="light"] body #root .App [class*="bg-red-500/10"] {
+    background-color: rgba(255,255,255,0.58) !important;
+}
+
+html[data-mh-theme="light"] body #root .App audio {
+    filter: none !important;
+}
+
+.mh-theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 80;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--mh-theme-border);
+    background: var(--mh-theme-card-strong);
+    color: var(--mh-theme-text);
+    box-shadow: var(--mh-theme-shadow), 0 10px 30px rgba(0,81,255,0.10);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    cursor: pointer;
+}
+
+.mh-theme-toggle:hover {
+    transform: translateY(-1px);
+    border-color: rgba(0,81,255,0.34);
+    box-shadow: var(--mh-theme-shadow), 0 14px 36px rgba(0,81,255,0.18);
+}
+
+.mh-theme-toggle__icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(0,81,255,0.18), rgba(0,81,255,0.06));
+    color: #0051FF;
+    font-size: 15px;
+}
+
+.mh-theme-toggle__text {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mh-theme-muted);
+}
+
+@media (max-width: 1023px) {
+    .mh-theme-toggle {
+        top: 74px;
+        right: 14px;
+        min-height: 38px;
+        padding: 6px 8px;
+    }
+
+    .mh-theme-toggle__text {
+        display: none;
+    }
+}
