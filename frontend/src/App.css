@@ -1,7 +1,77 @@
+:root {
+    --mh-blue: #0051FF;
+    --mh-blue-soft: rgba(0, 81, 255, 0.18);
+    --mh-blue-glow: rgba(0, 81, 255, 0.34);
+    --mh-bg: #050509;
+    --mh-bg-2: #090A12;
+    --mh-card: rgba(16, 18, 27, 0.56);
+    --mh-card-strong: rgba(18, 20, 30, 0.72);
+    --mh-border: rgba(255, 255, 255, 0.08);
+    --mh-border-strong: rgba(255, 255, 255, 0.14);
+    --mh-text: #F8FAFC;
+    --mh-muted: rgba(226, 232, 240, 0.62);
+    --mh-soft-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+    --mh-blue-shadow: 0 0 0 1px rgba(0, 81, 255, 0.16), 0 18px 50px rgba(0, 81, 255, 0.12);
+}
+
+html,
+body,
+#root {
+    min-height: 100%;
+    background: var(--mh-bg);
+    overflow-x: hidden;
+}
+
 .App {
     min-height: 100vh;
-    background: #09090B;
-    color: #FAFAFA;
+    background:
+        radial-gradient(circle at 18% 8%, rgba(0, 81, 255, 0.24), transparent 28%),
+        radial-gradient(circle at 82% 14%, rgba(64, 125, 255, 0.14), transparent 26%),
+        radial-gradient(circle at 50% 100%, rgba(0, 81, 255, 0.13), transparent 36%),
+        linear-gradient(145deg, #030306 0%, #080913 45%, #030306 100%);
+    color: var(--mh-text);
+    position: relative;
+    isolation: isolate;
+    overflow-x: hidden;
+}
+
+.App::before,
+.App::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+}
+
+.App::before {
+    z-index: -2;
+    background:
+        radial-gradient(circle at 12% 22%, rgba(0, 81, 255, 0.16), transparent 20%),
+        radial-gradient(circle at 78% 70%, rgba(0, 81, 255, 0.12), transparent 24%),
+        radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.035), transparent 30%);
+    filter: blur(0.2px);
+}
+
+.App::after {
+    z-index: -1;
+    opacity: 0.48;
+    background-image:
+        radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.7px),
+        radial-gradient(circle, rgba(0, 81, 255, 0.35) 0 1px, transparent 2px);
+    background-size: 76px 76px, 132px 132px;
+    background-position: 0 0, 34px 46px;
+    animation: mhParticleDrift 28s linear infinite;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.72) 50%, rgba(0,0,0,0.35));
+}
+
+.App > * {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes mhParticleDrift {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-34px, -46px, 0); }
 }
 
 @keyframes mhFadeUp {
@@ -73,6 +143,417 @@
     }
 }
 
+@keyframes mhGlowPulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(0, 81, 255, 0); }
+    50% { box-shadow: 0 0 34px rgba(0, 81, 255, 0.16); }
+}
+
+/* Global premium Apple-style foundation */
+.App .bg-zinc-950,
+.App .bg-zinc-950\/95 {
+    background-color: transparent !important;
+}
+
+.App main {
+    position: relative;
+    min-height: 100vh;
+}
+
+.App main > div {
+    width: 100%;
+    max-width: 1480px;
+    margin-inline: auto;
+}
+
+.App .label-xs {
+    color: rgba(226, 232, 240, 0.56);
+    letter-spacing: 0.22em;
+}
+
+.App h1,
+.App h2,
+.App h3 {
+    color: #FFFFFF;
+    text-wrap: balance;
+}
+
+.App p,
+.App .text-zinc-400,
+.App .text-zinc-500,
+.App .text-zinc-600 {
+    color: var(--mh-muted) !important;
+}
+
+.App ::selection {
+    background: rgba(0, 81, 255, 0.45);
+    color: #fff;
+}
+
+/* Layout, navigation, sidebar */
+.App aside {
+    background: linear-gradient(180deg, rgba(10, 12, 20, 0.82), rgba(5, 5, 9, 0.64)) !important;
+    border-color: var(--mh-border) !important;
+    box-shadow: 18px 0 50px rgba(0, 0, 0, 0.20);
+    backdrop-filter: blur(26px) saturate(150%);
+    -webkit-backdrop-filter: blur(26px) saturate(150%);
+}
+
+.App aside > div:first-child,
+.App header,
+.App [class*="border-b"] {
+    border-color: var(--mh-border) !important;
+}
+
+.App aside nav a {
+    position: relative;
+    border-radius: 18px !important;
+    border-left: 0 !important;
+    border: 1px solid transparent !important;
+    color: rgba(226, 232, 240, 0.68) !important;
+    margin-bottom: 6px;
+}
+
+.App aside nav a::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: 17px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 58%);
+    opacity: 0;
+    transition: opacity 220ms ease;
+    pointer-events: none;
+}
+
+.App aside nav a:hover {
+    color: #FFFFFF !important;
+    background: rgba(255, 255, 255, 0.055) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+    transform: translateX(2px);
+}
+
+.App aside nav a:hover::before,
+.App aside nav a[aria-current="page"]::before {
+    opacity: 1;
+}
+
+.App aside nav a[aria-current="page"] {
+    color: #FFFFFF !important;
+    background: linear-gradient(135deg, rgba(0, 81, 255, 0.34), rgba(0, 81, 255, 0.11)) !important;
+    border-color: rgba(0, 81, 255, 0.44) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 12px 34px rgba(0, 81, 255, 0.16);
+}
+
+.App aside nav a[aria-current="page"] span:first-child {
+    color: #FFFFFF !important;
+    text-shadow: 0 0 16px rgba(0, 81, 255, 0.7);
+}
+
+.App header {
+    background: rgba(5, 7, 13, 0.78) !important;
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    box-shadow: 0 16px 34px rgba(0,0,0,0.22);
+}
+
+.App header button,
+.App aside button,
+.App [title="Notifications"] {
+    border-radius: 16px !important;
+}
+
+/* Glass cards, panels, widgets, empty states */
+.App main [class*="border-white/10"],
+.App main [class*="border-zinc"],
+.App main [class*="border-blue"],
+.App main [class*="border-purple"],
+.App main [class*="border-cyan"],
+.App main [class*="border-emerald"],
+.App main [class*="border-amber"],
+.App main [class*="border-red"],
+.App .card-hover,
+.App [data-testid*="panel"],
+.App [data-testid*="card"],
+.App [data-testid^="kanban-column-"] {
+    border-color: var(--mh-border) !important;
+    border-radius: 24px !important;
+}
+
+.App main [class*="bg-zinc-900/30"],
+.App main [class*="bg-zinc-900/40"],
+.App main [class*="bg-black/20"],
+.App main [class*="bg-zinc-800"],
+.App .card-hover,
+.App [data-testid*="panel"],
+.App [data-testid*="card"],
+.App [data-testid^="kanban-column-"] {
+    background: linear-gradient(145deg, rgba(255,255,255,0.074), rgba(255,255,255,0.028) 42%, rgba(0,81,255,0.045)) !important;
+    box-shadow: var(--mh-soft-shadow), inset 0 1px 0 rgba(255,255,255,0.08);
+    backdrop-filter: blur(22px) saturate(145%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+}
+
+.App main [class*="rounded-md"],
+.App main [class*="rounded-lg"],
+.App main [class*="rounded-xl"] {
+    border-radius: 20px;
+}
+
+.App .card-hover,
+.App main [class*="border-white/10"],
+.App main [class*="bg-zinc-900/30"],
+.App main [class*="bg-zinc-900/40"],
+.App main [class*="bg-black/20"],
+.App [data-testid^="kanban-column-"] {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms ease, box-shadow 220ms ease, background 220ms ease, opacity 220ms ease;
+}
+
+.App .card-hover:hover,
+.App main [class*="border-white/10"]:hover,
+.App main [class*="bg-zinc-900/30"]:hover,
+.App main [class*="bg-zinc-900/40"]:hover,
+.App [data-testid^="kanban-column-"]:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0, 81, 255, 0.30) !important;
+    box-shadow: var(--mh-soft-shadow), var(--mh-blue-shadow), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+/* Forms */
+.App input,
+.App textarea,
+.App select {
+    background: rgba(7, 10, 18, 0.68) !important;
+    color: #FFFFFF !important;
+    border: 1px solid var(--mh-border) !important;
+    border-radius: 18px !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.16);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    transition: border-color 200ms ease, box-shadow 200ms ease, background 200ms ease, transform 200ms ease;
+}
+
+.App input::placeholder,
+.App textarea::placeholder {
+    color: rgba(226, 232, 240, 0.36) !important;
+}
+
+.App input:focus,
+.App textarea:focus,
+.App select:focus {
+    outline: none !important;
+    border-color: rgba(0, 81, 255, 0.66) !important;
+    box-shadow: 0 0 0 4px rgba(0, 81, 255, 0.13), 0 18px 44px rgba(0, 81, 255, 0.08) !important;
+}
+
+.App label {
+    color: rgba(226, 232, 240, 0.74) !important;
+}
+
+/* Buttons */
+.App button,
+.App a {
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease, background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.App button:hover,
+.App a:hover {
+    transform: translateY(-1px);
+}
+
+.App button:active,
+.App a:active {
+    transform: translateY(0) scale(0.99);
+}
+
+.App button:disabled,
+.App [disabled] {
+    cursor: not-allowed;
+    opacity: 0.48 !important;
+    transform: none !important;
+}
+
+.App .bg-white.text-black,
+.App button.bg-white,
+.App a.bg-white {
+    background: linear-gradient(135deg, var(--mh-blue), #2D71FF) !important;
+    color: #FFFFFF !important;
+    border-color: rgba(0, 81, 255, 0.55) !important;
+    box-shadow: 0 14px 34px rgba(0, 81, 255, 0.26), inset 0 1px 0 rgba(255,255,255,0.24) !important;
+}
+
+.App .bg-white.text-black:hover,
+.App button.bg-white:hover,
+.App a.bg-white:hover {
+    background: linear-gradient(135deg, #0D5CFF, #4380FF) !important;
+    box-shadow: 0 18px 44px rgba(0, 81, 255, 0.34), inset 0 1px 0 rgba(255,255,255,0.28) !important;
+}
+
+.App button[class*="border-white/10"],
+.App a[class*="border-white/10"] {
+    background: rgba(255, 255, 255, 0.045) !important;
+    border-color: var(--mh-border) !important;
+    color: rgba(248, 250, 252, 0.84) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.App button[class*="border-white/10"]:hover,
+.App a[class*="border-white/10"]:hover {
+    border-color: rgba(0, 81, 255, 0.36) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 12px 30px rgba(0, 81, 255, 0.12);
+}
+
+/* Badges, statuses, avatars */
+.App span.inline-flex.items-center.rounded-md,
+.App .rounded-full,
+.App .rounded-md {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.055);
+}
+
+.App span.inline-flex.items-center.px-2,
+.App [class*="bg-blue-500/10"],
+.App [class*="bg-emerald-500/10"],
+.App [class*="bg-amber-500/10"],
+.App [class*="bg-red-500/10"] {
+    border-radius: 999px !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.App img {
+    image-rendering: auto;
+}
+
+/* Tables and project lists */
+.App table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+}
+
+.App th {
+    color: rgba(226, 232, 240, 0.52) !important;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.App td {
+    background: rgba(255, 255, 255, 0.035);
+    border-top: 1px solid var(--mh-border);
+    border-bottom: 1px solid var(--mh-border);
+}
+
+.App tr td:first-child {
+    border-left: 1px solid var(--mh-border);
+    border-top-left-radius: 18px;
+    border-bottom-left-radius: 18px;
+}
+
+.App tr td:last-child {
+    border-right: 1px solid var(--mh-border);
+    border-top-right-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
+
+.App tbody tr {
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.App tbody tr:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 30px rgba(0, 81, 255, 0.08);
+}
+
+/* Chat and messaging */
+.App [data-testid="chat-input"] {
+    min-height: 44px;
+}
+
+.App [data-testid="chat-send-button"] {
+    border-radius: 16px !important;
+}
+
+.App [data-testid^="channel-"] {
+    border-color: var(--mh-border) !important;
+    transition: background 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+
+.App [data-testid^="channel-"]:hover {
+    background: rgba(0, 81, 255, 0.08) !important;
+    border-color: rgba(0, 81, 255, 0.22) !important;
+}
+
+.App [data-testid^="reaction-"] {
+    border-radius: 999px !important;
+    background: rgba(255,255,255,0.06) !important;
+}
+
+.App audio {
+    filter: invert(1) hue-rotate(180deg);
+    opacity: 0.92;
+}
+
+/* Notification drawer and mobile drawer */
+.App .fixed.inset-0.z-50 > div,
+.App .fixed.inset-0.z-50 aside {
+    background: linear-gradient(180deg, rgba(7, 10, 18, 0.92), rgba(5, 5, 9, 0.84)) !important;
+    border-color: var(--mh-border) !important;
+    backdrop-filter: blur(26px) saturate(150%);
+    -webkit-backdrop-filter: blur(26px) saturate(150%);
+    box-shadow: -22px 0 64px rgba(0,0,0,0.36);
+}
+
+.App button[aria-label="Close mobile menu"],
+.App button[aria-label="Close notifications overlay"] {
+    animation: mhOverlayFade 180ms ease-out both;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.App button[aria-label="Close mobile menu"] + div {
+    animation: mhSlideInLeft 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform;
+}
+
+.App button[aria-label="Close notifications overlay"] + div {
+    animation: mhSlideInRight 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform;
+}
+
+/* Login / invite / standalone pages */
+.App > .min-h-screen,
+.App .min-h-screen.grid,
+.App .min-h-screen[class*="grid"] {
+    background: transparent !important;
+}
+
+.App .min-h-screen.grid > div:last-child > div {
+    padding: 28px;
+    border: 1px solid var(--mh-border);
+    border-radius: 28px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.035) 48%, rgba(0,81,255,0.055)) !important;
+    box-shadow: var(--mh-soft-shadow), inset 0 1px 0 rgba(255,255,255,0.10);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+.App .min-h-screen.grid > div:first-child {
+    border-right: 1px solid var(--mh-border);
+}
+
+.App .min-h-screen.grid > div:first-child::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 30% 20%, rgba(0,81,255,0.26), transparent 28%),
+        radial-gradient(circle at 70% 70%, rgba(255,255,255,0.07), transparent 32%);
+    pointer-events: none;
+}
+
+/* Existing dashboard animation helpers */
 .mh-saas-motion main > div {
     animation: mhFadeIn 220ms ease-out both;
 }
@@ -89,57 +570,6 @@
 .mh-saas-motion main > div > *:nth-child(6) { animation-delay: 145ms; }
 .mh-saas-motion main > div > *:nth-child(7) { animation-delay: 170ms; }
 .mh-saas-motion main > div > *:nth-child(8) { animation-delay: 195ms; }
-
-.mh-saas-motion main [class*="border-white/10"],
-.mh-saas-motion main .card-hover,
-.mh-saas-motion main input,
-.mh-saas-motion main textarea,
-.mh-saas-motion main select {
-    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, opacity 180ms ease;
-}
-
-.mh-saas-motion main [class*="border-white/10"][class*="bg-zinc-900/30"]:hover,
-.mh-saas-motion main .card-hover:hover {
-    transform: translateY(-2px);
-    border-color: rgba(0, 81, 255, 0.26);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18), 0 0 18px rgba(0, 81, 255, 0.055);
-}
-
-.mh-saas-motion main input:focus,
-.mh-saas-motion main textarea:focus,
-.mh-saas-motion main select:focus {
-    border-color: rgba(0, 81, 255, 0.42);
-    box-shadow: 0 0 0 3px rgba(0, 81, 255, 0.08);
-}
-
-.mh-saas-motion main button,
-.mh-saas-motion main a {
-    transition: transform 150ms ease, opacity 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
-}
-
-.mh-saas-motion main button:hover,
-.mh-saas-motion main a:hover {
-    transform: translateY(-1px);
-}
-
-.mh-saas-motion main button:active {
-    transform: translateY(0) scale(0.99);
-}
-
-.mh-saas-motion button[aria-label="Close mobile menu"],
-.mh-saas-motion button[aria-label="Close notifications overlay"] {
-    animation: mhOverlayFade 180ms ease-out both;
-}
-
-.mh-saas-motion button[aria-label="Close mobile menu"] + div {
-    animation: mhSlideInLeft 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: transform;
-}
-
-.mh-saas-motion button[aria-label="Close notifications overlay"] + div {
-    animation: mhSlideInRight 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    will-change: transform;
-}
 
 .mh-dashboard-motion [data-testid="mvp-card"],
 .mh-dashboard-motion [data-testid="mvp-self-card"],
@@ -159,46 +589,35 @@
     animation-delay: 90ms;
 }
 
-.mh-saas-motion aside nav a,
-.mh-saas-motion aside button,
-.mh-saas-motion header button {
-    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
-}
-
-.mh-saas-motion aside nav a:hover,
-.mh-saas-motion aside button:hover,
-.mh-saas-motion header button:hover {
-    transform: translateX(1px);
-}
-
+/* Kanban polish while keeping existing status meaning */
 [data-testid="kanban-column-available"] {
-    border-color: rgba(59, 130, 246, 0.24) !important;
-    background: linear-gradient(180deg, rgba(59, 130, 246, 0.085), rgba(24, 24, 27, 0.45)) !important;
+    border-color: rgba(0, 81, 255, 0.24) !important;
+    background: linear-gradient(180deg, rgba(0, 81, 255, 0.12), rgba(18, 20, 30, 0.48)) !important;
 }
 
 [data-testid="kanban-column-active"] {
     border-color: rgba(34, 197, 94, 0.26) !important;
-    background: linear-gradient(180deg, rgba(34, 197, 94, 0.085), rgba(24, 24, 27, 0.45)) !important;
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.10), rgba(18, 20, 30, 0.48)) !important;
 }
 
 [data-testid="kanban-column-submitted"] {
     border-color: rgba(245, 158, 11, 0.34) !important;
-    background: linear-gradient(180deg, rgba(245, 158, 11, 0.11), rgba(24, 24, 27, 0.45)) !important;
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(18, 20, 30, 0.48)) !important;
 }
 
 [data-testid="kanban-column-client_review"] {
     border-color: rgba(168, 85, 247, 0.30) !important;
-    background: linear-gradient(180deg, rgba(168, 85, 247, 0.10), rgba(24, 24, 27, 0.45)) !important;
+    background: linear-gradient(180deg, rgba(168, 85, 247, 0.11), rgba(18, 20, 30, 0.48)) !important;
 }
 
 [data-testid="kanban-column-revision"] {
     border-color: rgba(239, 68, 68, 0.32) !important;
-    background: linear-gradient(180deg, rgba(239, 68, 68, 0.105), rgba(24, 24, 27, 0.45)) !important;
+    background: linear-gradient(180deg, rgba(239, 68, 68, 0.12), rgba(18, 20, 30, 0.48)) !important;
 }
 
 [data-testid="kanban-column-completed"] {
     border-color: rgba(20, 184, 166, 0.30) !important;
-    background: linear-gradient(180deg, rgba(20, 184, 166, 0.095), rgba(24, 24, 27, 0.45)) !important;
+    background: linear-gradient(180deg, rgba(20, 184, 166, 0.11), rgba(18, 20, 30, 0.48)) !important;
 }
 
 [data-testid^="kanban-column-"] {
@@ -214,7 +633,7 @@
     opacity: 0.9;
 }
 
-[data-testid="kanban-column-available"]::before { background: #3B82F6; }
+[data-testid="kanban-column-available"]::before { background: var(--mh-blue); }
 [data-testid="kanban-column-active"]::before { background: #22C55E; }
 [data-testid="kanban-column-submitted"]::before { background: #F59E0B; }
 [data-testid="kanban-column-client_review"]::before { background: #A855F7; }
@@ -225,24 +644,91 @@
     color: rgba(244, 244, 245, 0.74);
 }
 
-[data-testid="kanban-column-available"] .label-xs { color: #93C5FD; }
+[data-testid="kanban-column-available"] .label-xs { color: #9DBBFF; }
 [data-testid="kanban-column-active"] .label-xs { color: #86EFAC; }
 [data-testid="kanban-column-submitted"] .label-xs { color: #FCD34D; }
 [data-testid="kanban-column-client_review"] .label-xs { color: #D8B4FE; }
 [data-testid="kanban-column-revision"] .label-xs { color: #FCA5A5; }
 [data-testid="kanban-column-completed"] .label-xs { color: #5EEAD4; }
 
-[data-testid^="kanban-column-"]:hover {
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.20);
+/* Recharts premium tooltip/container polish */
+.App .recharts-default-tooltip {
+    background: rgba(8, 11, 20, 0.86) !important;
+    border: 1px solid var(--mh-border) !important;
+    border-radius: 16px !important;
+    box-shadow: var(--mh-soft-shadow) !important;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+.App .recharts-cartesian-axis-tick-value,
+.App .recharts-legend-item-text {
+    fill: rgba(226, 232, 240, 0.58) !important;
+    color: rgba(226, 232, 240, 0.58) !important;
+}
+
+/* Responsive polishing */
+@media (max-width: 1023px) {
+    .App main > div {
+        max-width: 100%;
+    }
+
+    .App main [class*="grid"] {
+        min-width: 0;
+    }
+
+    .App aside {
+        box-shadow: 24px 0 70px rgba(0,0,0,0.42);
+    }
+}
+
+@media (max-width: 767px) {
+    .App main > div {
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+
+    .App h1 {
+        font-size: clamp(1.55rem, 9vw, 2.1rem) !important;
+        line-height: 1.06 !important;
+    }
+
+    .App main [class*="grid-cols-2"],
+    .App main [class*="grid-cols-4"],
+    .App main [class*="lg:grid-cols"],
+    .App main [class*="md:grid-cols"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .App main [class*="h-[70vh]"] {
+        height: auto !important;
+        min-height: 72vh;
+    }
+
+    .App .min-h-screen.grid > div:last-child {
+        padding: 18px !important;
+    }
+
+    .App .min-h-screen.grid > div:last-child > div {
+        padding: 22px;
+        border-radius: 24px;
+    }
+
+    .App table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .App::after,
     .mh-saas-motion main > div,
     .mh-saas-motion main > div > *,
-    .mh-saas-motion button[aria-label="Close mobile menu"],
-    .mh-saas-motion button[aria-label="Close notifications overlay"],
-    .mh-saas-motion button[aria-label="Close mobile menu"] + div,
-    .mh-saas-motion button[aria-label="Close notifications overlay"] + div,
+    .App button[aria-label="Close mobile menu"],
+    .App button[aria-label="Close notifications overlay"],
+    .App button[aria-label="Close mobile menu"] + div,
+    .App button[aria-label="Close notifications overlay"] + div,
     .mh-dashboard-motion [data-testid="mvp-card"],
     .mh-dashboard-motion [data-testid="mvp-self-card"],
     .mh-dashboard-motion [data-testid="xp-banner"],
@@ -253,14 +739,16 @@
         animation: none !important;
     }
 
-    .mh-saas-motion main [class*="border-white/10"][class*="bg-zinc-900/30"]:hover,
-    .mh-saas-motion main .card-hover:hover,
-    .mh-saas-motion main button:hover,
-    .mh-saas-motion main a:hover,
-    .mh-saas-motion main button:active,
-    .mh-saas-motion aside nav a:hover,
-    .mh-saas-motion aside button:hover,
-    .mh-saas-motion header button:hover {
+    .App .card-hover:hover,
+    .App main [class*="border-white/10"]:hover,
+    .App main [class*="bg-zinc-900/30"]:hover,
+    .App main [class*="bg-zinc-900/40"]:hover,
+    .App button:hover,
+    .App a:hover,
+    .App button:active,
+    .App a:active,
+    .App aside nav a:hover,
+    .App tbody tr:hover {
         transform: none !important;
     }
 }
