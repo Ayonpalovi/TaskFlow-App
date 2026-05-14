@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
 
@@ -17,6 +17,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminCalendar from "./pages/AdminCalendar";
 import AdminApprovals from "./pages/AdminApprovals";
 import AdminPayments from "./pages/AdminPayments";
+import AdminAbsenceMode from "./pages/AdminAbsenceMode";
 
 import Leaderboard from "./pages/Leaderboard";
 import WorkflowSuite from "./pages/WorkflowSuiteSecure";
@@ -31,40 +32,19 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
+import ModeratorDashboard from "./pages/ModeratorDashboard";
 import ChatPage from "./pages/ChatPage";
 
-const THEME_KEY = "motionholic_os_theme";
-
-function getSavedTheme() {
-  if (typeof window === "undefined") return "dark";
-  const saved = localStorage.getItem(THEME_KEY);
-  return saved === "light" ? "light" : "dark";
-}
-
-function ThemeToggle() {
-  const [theme, setTheme] = useState(getSavedTheme);
-
+function PermanentDarkMode() {
   useEffect(() => {
-    document.documentElement.setAttribute("data-mh-theme", theme);
-    localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
-
-  const nextTheme = theme === "dark" ? "light" : "dark";
-
-  return (
-    <button
-      type="button"
-      className="mh-theme-toggle"
-      onClick={() => setTheme(nextTheme)}
-      aria-label={`Switch to ${nextTheme} mode`}
-      title={`Switch to ${nextTheme} mode`}
-    >
-      <span className="mh-theme-toggle__icon" aria-hidden="true">
-        {theme === "dark" ? "☾" : "☀"}
-      </span>
-      <span className="mh-theme-toggle__text">{theme}</span>
-    </button>
-  );
+    document.documentElement.setAttribute("data-mh-theme", "dark");
+    try {
+      localStorage.setItem("motionholic_os_theme", "dark");
+    } catch {
+      // Dark mode remains the permanent UI default.
+    }
+  }, []);
+  return null;
 }
 
 function LoadingScreen() {
@@ -77,46 +57,25 @@ function LoadingScreen() {
 
 function RootRedirect() {
   const { user, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  if (!user || !user.role) {
-    return <Navigate to="/login" replace />;
-  }
-
-  const validRoles = ["admin", "editor", "client"];
-
-  if (!validRoles.includes(user.role)) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (loading) return <LoadingScreen />;
+  if (!user || !user.role) return <Navigate to="/login" replace />;
+  const validRoles = ["admin", "editor", "client", "moderator"];
+  if (!validRoles.includes(user.role)) return <Navigate to="/login" replace />;
   return <Navigate to={`/${user.role}`} replace />;
 }
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  if (!user || !user.role) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (loading) return <LoadingScreen />;
+  if (!user || !user.role) return <Navigate to="/login" replace />;
+  if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
 }
 
 function App() {
   return (
     <div className="App">
-      <ThemeToggle />
+      <PermanentDarkMode />
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
@@ -126,7 +85,6 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
-
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/workflow" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/admin/tasks" element={<ProtectedRoute allowedRoles={["admin"]}><AdminTasks /></ProtectedRoute>} />
@@ -134,10 +92,11 @@ function App() {
             <Route path="/admin/approvals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminApprovals /></ProtectedRoute>} />
             <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminPayments /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["admin"]}><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/absence" element={<ProtectedRoute allowedRoles={["admin"]}><AdminAbsenceMode /></ProtectedRoute>} />
             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
-
+            <Route path="/moderator" element={<ProtectedRoute allowedRoles={["moderator"]}><ModeratorDashboard /></ProtectedRoute>} />
             <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
             <Route path="/editor/workflow" element={<ProtectedRoute allowedRoles={["editor"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/editor/profile" element={<ProtectedRoute allowedRoles={["editor"]}><EditorProfile /></ProtectedRoute>} />
@@ -146,14 +105,12 @@ function App() {
             <Route path="/editor/performance" element={<ProtectedRoute allowedRoles={["editor"]}><EditorPerformance /></ProtectedRoute>} />
             <Route path="/editor/leaderboard" element={<ProtectedRoute allowedRoles={["editor"]}><Leaderboard allowed={["editor"]} /></ProtectedRoute>} />
             <Route path="/editor/chat" element={<ProtectedRoute allowedRoles={["editor"]}><ChatPage mode="editor" /></ProtectedRoute>} />
-
             <Route path="/client" element={<ProtectedRoute allowedRoles={["client"]}><ClientDashboard /></ProtectedRoute>} />
             <Route path="/client/workflow" element={<ProtectedRoute allowedRoles={["client"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/client/projects" element={<ProtectedRoute allowedRoles={["client"]}><ClientDashboard /></ProtectedRoute>} />
             <Route path="/client/panel" element={<ProtectedRoute allowedRoles={["client"]}><ClientPanel /></ProtectedRoute>} />
             <Route path="/client/create" element={<ProtectedRoute allowedRoles={["client"]}><ClientCreateProject /></ProtectedRoute>} />
             <Route path="/client/chat" element={<ProtectedRoute allowedRoles={["client"]}><ChatPage mode="client" /></ProtectedRoute>} />
-
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
