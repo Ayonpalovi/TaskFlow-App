@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
 
@@ -16,6 +17,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminCalendar from "./pages/AdminCalendar";
 import AdminApprovals from "./pages/AdminApprovals";
 import AdminPayments from "./pages/AdminPayments";
+import AdminAbsenceMode from "./pages/AdminAbsenceMode";
 
 import Leaderboard from "./pages/Leaderboard";
 import WorkflowSuite from "./pages/WorkflowSuiteSecure";
@@ -30,7 +32,21 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
+import ModeratorDashboard from "./pages/ModeratorDashboard";
 import ChatPage from "./pages/ChatPage";
+
+function PermanentDarkMode() {
+  useEffect(() => {
+    document.documentElement.setAttribute("data-mh-theme", "dark");
+    try {
+      localStorage.setItem("motionholic_os_theme", "dark");
+    } catch {
+      // Keep dark mode even when storage is restricted.
+    }
+  }, []);
+
+  return null;
+}
 
 function LoadingScreen() {
   return (
@@ -51,7 +67,7 @@ function RootRedirect() {
     return <Navigate to="/login" replace />;
   }
 
-  const validRoles = ["admin", "editor", "client"];
+  const validRoles = ["admin", "editor", "client", "moderator"];
 
   if (!validRoles.includes(user.role)) {
     return <Navigate to="/login" replace />;
@@ -81,6 +97,7 @@ function ProtectedRoute({ children, allowedRoles }) {
 function App() {
   return (
     <div className="App">
+      <PermanentDarkMode />
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
@@ -98,9 +115,12 @@ function App() {
             <Route path="/admin/approvals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminApprovals /></ProtectedRoute>} />
             <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminPayments /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["admin"]}><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/absence" element={<ProtectedRoute allowedRoles={["admin"]}><AdminAbsenceMode /></ProtectedRoute>} />
             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
+
+            <Route path="/moderator" element={<ProtectedRoute allowedRoles={["moderator"]}><ModeratorDashboard /></ProtectedRoute>} />
 
             <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
             <Route path="/editor/workflow" element={<ProtectedRoute allowedRoles={["editor"]}><WorkflowSuite /></ProtectedRoute>} />
