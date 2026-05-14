@@ -53,13 +53,15 @@ def _attach_workflow_routers(app, server, existing_paths):
 
 def _attach_moderator_router(app, server, existing_paths):
     global _attached_moderator
-    if _attached_moderator or "/api/absence-mode" in existing_paths:
+    if _attached_moderator or "/api/absence-mode/moderators/invite" in existing_paths:
         _attached_moderator = True
         return
 
     from moderator_routes import build_moderator_router
+    from moderator_account_routes import build_moderator_account_router
 
     _original_include_router(app, build_moderator_router(server))
+    _original_include_router(app, build_moderator_account_router(server))
     _attached_moderator = True
     print("Motionholic moderator routes attached")
 
