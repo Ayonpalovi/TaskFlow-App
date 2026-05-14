@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
 
@@ -31,6 +32,40 @@ import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
 import ChatPage from "./pages/ChatPage";
+
+const THEME_KEY = "motionholic_os_theme";
+
+function getSavedTheme() {
+  if (typeof window === "undefined") return "dark";
+  const saved = localStorage.getItem(THEME_KEY);
+  return saved === "light" ? "light" : "dark";
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState(getSavedTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-mh-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  const nextTheme = theme === "dark" ? "light" : "dark";
+
+  return (
+    <button
+      type="button"
+      className="mh-theme-toggle"
+      onClick={() => setTheme(nextTheme)}
+      aria-label={`Switch to ${nextTheme} mode`}
+      title={`Switch to ${nextTheme} mode`}
+    >
+      <span className="mh-theme-toggle__icon" aria-hidden="true">
+        {theme === "dark" ? "☾" : "☀"}
+      </span>
+      <span className="mh-theme-toggle__text">{theme}</span>
+    </button>
+  );
+}
 
 function LoadingScreen() {
   return (
@@ -81,6 +116,7 @@ function ProtectedRoute({ children, allowedRoles }) {
 function App() {
   return (
     <div className="App">
+      <ThemeToggle />
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
