@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+const WORKFLOW_PATH = "/moderator/workflow";
 const CREATE_TASK_PATH = "/moderator/create";
 
 function ensureModeratorOption(select) {
@@ -46,49 +47,69 @@ function getLinkPath(link) {
   }
 }
 
-function createModeratorCreateTaskLink() {
+function createModeratorSidebarLink({ path, label, icon, datasetKey }) {
   const link = document.createElement("a");
-  link.href = CREATE_TASK_PATH;
-  link.dataset.moderatorCreateTaskLink = "true";
-  link.className = navLinkClass(window.location.pathname === CREATE_TASK_PATH);
-  link.innerHTML = '<span class="w-4 text-center text-zinc-400">▣</span><span>Create Task</span>';
+  link.href = path;
+  link.dataset[datasetKey] = "true";
+  link.className = navLinkClass(window.location.pathname === path);
+  link.innerHTML = `<span class="w-4 text-center text-zinc-400">${icon}</span><span>${label}</span>`;
   return link;
+}
+
+function syncInjectedLink({ nav, path, label, icon, datasetKey, insertAfterPath }) {
+  const allLinks = Array.from(nav.querySelectorAll("a")).filter((link) => getLinkPath(link) === path);
+  const nativeLinks = allLinks.filter((link) => link.dataset[datasetKey] !== "true");
+  const injectedLinks = allLinks.filter((link) => link.dataset[datasetKey] === "true");
+  const insertAfterLink = Array.from(nav.querySelectorAll("a")).find((link) => getLinkPath(link) === insertAfterPath);
+
+  if (nativeLinks.length > 0) {
+    injectedLinks.forEach((link) => link.remove());
+    nativeLinks.forEach((link, index) => {
+      if (index > 0) {
+        link.remove();
+        return;
+      }
+      link.className = navLinkClass(window.location.pathname === path);
+    });
+    return;
+  }
+
+  if (injectedLinks.length > 0) {
+    injectedLinks.forEach((link, index) => {
+      if (index > 0) {
+        link.remove();
+        return;
+      }
+      link.className = navLinkClass(window.location.pathname === path);
+    });
+    return;
+  }
+
+  if (!insertAfterLink) return;
+  insertAfterLink.insertAdjacentElement("afterend", createModeratorSidebarLink({ path, label, icon, datasetKey }));
 }
 
 function patchModeratorSidebar() {
   if (!window.location.pathname.startsWith("/moderator")) return;
 
   document.querySelectorAll("aside nav").forEach((nav) => {
-    const allCreateLinks = Array.from(nav.querySelectorAll("a")).filter((link) => getLinkPath(link) === CREATE_TASK_PATH);
-    const nativeCreateLinks = allCreateLinks.filter((link) => link.dataset.moderatorCreateTaskLink !== "true");
-    const injectedCreateLinks = allCreateLinks.filter((link) => link.dataset.moderatorCreateTaskLink === "true");
-    const tasksLink = Array.from(nav.querySelectorAll("a")).find((link) => getLinkPath(link) === "/moderator/tasks");
+    syncInjectedLink({
+      nav,
+      path: WORKFLOW_PATH,
+      label: "Workflow Suite",
+      icon: "✦",
+      datasetKey: "moderatorWorkflowLink",
+      insertAfterPath: "/moderator/overview",
+    });
 
-    if (nativeCreateLinks.length > 0) {
-      injectedCreateLinks.forEach((link) => link.remove());
-      nativeCreateLinks.forEach((link, index) => {
-        if (index > 0) {
-          link.remove();
-          return;
-        }
-        link.className = navLinkClass(window.location.pathname === CREATE_TASK_PATH);
-      });
-      return;
-    }
-
-    if (injectedCreateLinks.length > 0) {
-      injectedCreateLinks.forEach((link, index) => {
-        if (index > 0) {
-          link.remove();
-          return;
-        }
-        link.className = navLinkClass(window.location.pathname === CREATE_TASK_PATH);
-      });
-      return;
-    }
-
-    if (!tasksLink) return;
-    tasksLink.insertAdjacentElement("afterend", createModeratorCreateTaskLink());
+    syncInjectedLink({
+      nav,
+      path: CREATE_TASK_PATH,
+      label: "Create Task",
+      icon: "▣",
+      datasetKey: "moderatorCreateTaskLink",
+      insertAfterPath: "/moderator/tasks",
+    });
   });
 }
 
