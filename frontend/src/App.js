@@ -35,6 +35,7 @@ import ClientCreateProject from "./pages/ClientCreateProject";
 
 import ModeratorCommandOverview from "./pages/moderator/ModeratorCommandOverview";
 import ModeratorTasks from "./pages/moderator/ModeratorTasks";
+import ModeratorCreateTask from "./pages/moderator/ModeratorCreateTask";
 import {
   ModeratorProjects,
   ModeratorTeamWorkload,
@@ -129,6 +130,7 @@ function App() {
             <Route path="/moderator/overview" element={<ModRoute><ModeratorCommandOverview /></ModRoute>} />
             <Route path="/moderator/projects" element={<ModRoute><ModeratorProjects /></ModRoute>} />
             <Route path="/moderator/tasks" element={<ModRoute><ModeratorTasks /></ModRoute>} />
+            <Route path="/moderator/create" element={<ModRoute><ModeratorCreateTask /></ModRoute>} />
             <Route path="/moderator/team-workload" element={<ModRoute><ModeratorTeamWorkload /></ModRoute>} />
             <Route path="/moderator/client-messages" element={<ModRoute><ModeratorClientMessages /></ModRoute>} />
             <Route path="/moderator/reviews" element={<ModRoute><ModeratorReviews /></ModRoute>} />
