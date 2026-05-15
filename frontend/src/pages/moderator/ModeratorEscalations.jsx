@@ -3,6 +3,7 @@ import Layout, { PageHeader, Badge } from "../../components/Layout";
 import { api, formatApiError } from "../../lib/api";
 
 const BLUE = "#0051FF";
+const ESCALATION_TYPE = "moderator_escalation";
 
 const categories = [
   ["delay", "Delayed project"],
@@ -29,6 +30,14 @@ function formatDate(value) {
   }
 }
 
+function getTitle(item) {
+  return item.issue_title || item.brand_name || item.title || "Escalation";
+}
+
+function getBody(item) {
+  return item.issue_body || item.notes || item.body || "";
+}
+
 export default function ModeratorEscalations() {
   const [form, setForm] = useState({ title: "", category: "delay", body: "" });
   const [items, setItems] = useState([]);
@@ -38,10 +47,9 @@ export default function ModeratorEscalations() {
 
   const loadEscalations = async () => {
     try {
-      const response = await api.get("/moderator/dashboard");
-      const dashboard = response.data || {};
-      const notes = dashboard.escalation_center?.issues_needing_admin_attention || [];
-      setItems(Array.isArray(notes) ? notes : []);
+      const response = await api.get("/workflow/brandProfiles");
+      const rows = Array.isArray(response.data) ? response.data : [];
+      setItems(rows.filter((item) => item.record_type === ESCALATION_TYPE));
     } catch {
       setItems([]);
     }
@@ -66,15 +74,19 @@ export default function ModeratorEscalations() {
 
     try {
       setSaving(true);
-      const response = await api.post("/moderator/escalations", {
-        title,
+      const response = await api.post("/workflow/brandProfiles", {
+        record_type: ESCALATION_TYPE,
+        brand_name: title,
+        issue_title: title,
+        issue_body: body,
         category: form.category,
-        body,
+        notes: body,
+        admin_status: "unread",
       });
-      const created = response.data?.escalation || response.data;
+      const created = response.data;
       setItems((prev) => [created, ...prev]);
       setForm({ title: "", category: "delay", body: "" });
-      setNotice("Sent to Admin. Admin will receive this as a notification.");
+      setNotice("Sent to Admin. Admin can see this at the bottom of the Admin Overview page.");
       await loadEscalations();
     } catch (e) {
       setError(formatApiError(e?.response?.data?.detail || e.message));
@@ -85,7 +97,7 @@ export default function ModeratorEscalations() {
 
   return (
     <Layout allowed={["moderator"]}>
-      <PageHeader label="Moderator / Escalations" title="Escalations" subtitle="Send issues directly to Admin notifications." />
+      <PageHeader label="Moderator / Escalations" title="Escalations" subtitle="Send issues directly to the Admin Overview page." />
       {notice && <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{notice}</div>}
       {error && <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
       <div className="grid gap-5 xl:grid-cols-[.75fr,1fr]">
@@ -96,16 +108,15 @@ export default function ModeratorEscalations() {
             </select>
             <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Issue title" className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600" />
             <textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Short note to Admin" rows={3} className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600" />
-            <button onClick={submit} disabled={saving} className="w-full rounded-xl px-4 py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: BLUE }}>{saving ? "Notifying Admin…" : "Notify Admin"}</button>
+            <button onClick={submit} disabled={saving} className="w-full rounded-xl px-4 py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: BLUE }}>{saving ? "Sending…" : "Notify Admin"}</button>
           </div>
         </Card>
         <Card title="Submitted Notes">
           {items.length ? <div className="space-y-3">{items.map((item) => {
-            const meta = item.metadata || {};
-            const title = meta.title || item.target_email || "Escalation";
-            const category = meta.category || "issue";
-            const body = meta.body || "";
-            return <div key={item.id} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm"><div className="flex items-start justify-between gap-3"><div><div className="font-medium text-amber-100">{title}</div><div className="mt-1 text-xs text-amber-200/70">{category} · {formatDate(item.created_at)}</div></div><Badge tone={meta.notification_sent === false ? "warn" : "good"}>{meta.notification_sent === false ? "saved" : "admin notified"}</Badge></div>{body && <p className="mt-3 text-amber-100/80">{body}</p>}</div>;
+            const title = getTitle(item);
+            const category = item.category || "issue";
+            const body = getBody(item);
+            return <div key={item.id} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm"><div className="flex items-start justify-between gap-3"><div><div className="font-medium text-amber-100">{title}</div><div className="mt-1 text-xs text-amber-200/70">{category} · {formatDate(item.created_at)}</div></div><Badge tone="good">sent to admin</Badge></div>{body && <p className="mt-3 text-amber-100/80">{body}</p>}</div>;
           })}</div> : <Empty>No escalation notes yet.</Empty>}
         </Card>
       </div>
