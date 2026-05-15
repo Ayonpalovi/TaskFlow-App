@@ -14,6 +14,7 @@ _attached_account = False
 _attached_workflow = False
 _attached_moderator = False
 _attached_moderator_account_patch = False
+_attached_moderator_finance = False
 
 
 def _find_server_module():
@@ -77,6 +78,19 @@ def _attach_moderator_router(app, server, existing_paths):
     print("Motionholic moderator routes attached")
 
 
+def _attach_moderator_finance_router(app, server, existing_paths):
+    global _attached_moderator_finance
+    if _attached_moderator_finance or "/api/moderator/finance-access" in existing_paths:
+        _attached_moderator_finance = True
+        return
+
+    from moderator_finance_access import build_moderator_finance_router
+
+    _original_include_router(app, build_moderator_finance_router(server))
+    _attached_moderator_finance = True
+    print("Motionholic moderator finance routes attached")
+
+
 def _attach_extension_routers(app):
     server = _find_server_module()
     if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
@@ -103,6 +117,11 @@ def _attach_extension_routers(app):
         _attach_moderator_router(app, server, existing_paths)
     except Exception as exc:
         print(f"Motionholic moderator route loader failed: {exc}")
+
+    try:
+        _attach_moderator_finance_router(app, server, existing_paths)
+    except Exception as exc:
+        print(f"Motionholic moderator finance route loader failed: {exc}")
 
 
 def _patched_include_router(self, router, *args, **kwargs):
