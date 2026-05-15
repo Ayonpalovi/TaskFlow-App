@@ -38,6 +38,14 @@ function navLinkClass(isActive = false) {
   ].filter(Boolean).join(" ");
 }
 
+function getLinkPath(link) {
+  try {
+    return new URL(link.href, window.location.origin).pathname;
+  } catch {
+    return link.getAttribute("href");
+  }
+}
+
 function createModeratorCreateTaskLink() {
   const link = document.createElement("a");
   link.href = CREATE_TASK_PATH;
@@ -51,17 +59,36 @@ function patchModeratorSidebar() {
   if (!window.location.pathname.startsWith("/moderator")) return;
 
   document.querySelectorAll("aside nav").forEach((nav) => {
-    const existing = nav.querySelector('[data-moderator-create-task-link="true"]');
-    const tasksLink = Array.from(nav.querySelectorAll("a")).find((link) => link.getAttribute("href") === "/moderator/tasks");
+    const allCreateLinks = Array.from(nav.querySelectorAll("a")).filter((link) => getLinkPath(link) === CREATE_TASK_PATH);
+    const nativeCreateLinks = allCreateLinks.filter((link) => link.dataset.moderatorCreateTaskLink !== "true");
+    const injectedCreateLinks = allCreateLinks.filter((link) => link.dataset.moderatorCreateTaskLink === "true");
+    const tasksLink = Array.from(nav.querySelectorAll("a")).find((link) => getLinkPath(link) === "/moderator/tasks");
 
-    if (existing) {
-      existing.className = navLinkClass(window.location.pathname === CREATE_TASK_PATH);
+    if (nativeCreateLinks.length > 0) {
+      injectedCreateLinks.forEach((link) => link.remove());
+      nativeCreateLinks.forEach((link, index) => {
+        if (index > 0) {
+          link.remove();
+          return;
+        }
+        link.className = navLinkClass(window.location.pathname === CREATE_TASK_PATH);
+      });
+      return;
+    }
+
+    if (injectedCreateLinks.length > 0) {
+      injectedCreateLinks.forEach((link, index) => {
+        if (index > 0) {
+          link.remove();
+          return;
+        }
+        link.className = navLinkClass(window.location.pathname === CREATE_TASK_PATH);
+      });
       return;
     }
 
     if (!tasksLink) return;
-    const createLink = createModeratorCreateTaskLink();
-    tasksLink.insertAdjacentElement("afterend", createLink);
+    tasksLink.insertAdjacentElement("afterend", createModeratorCreateTaskLink());
   });
 }
 
