@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import { listLocalFinanceRequests, approveLocalFinanceRequest, rejectLocalFinanceRequest } from "../lib/moderatorFinanceRequestStore";
@@ -24,12 +23,12 @@ function financeFromTasks(tasks) {
 
 export default function ModeratorAccessApprovalWidget() {
   const { user } = useAuth();
-  const location = useLocation();
   const [requests, setRequests] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [notice, setNotice] = useState("");
   const [backendStatus, setBackendStatus] = useState("checking");
-  const visible = user?.role === "admin" && location.pathname === "/admin/users";
+  const [collapsed, setCollapsed] = useState(false);
+  const visible = user?.role === "admin";
 
   async function load() {
     if (!visible) return;
@@ -37,10 +36,10 @@ export default function ModeratorAccessApprovalWidget() {
     try {
       const { data } = await api.get("/workflow/moderator-finance/requests");
       serverRequests = Array.isArray(data) ? data : [];
-      setBackendStatus("connected");
+      setBackendStatus("backend connected");
     } catch {
       serverRequests = [];
-      setBackendStatus("fallback");
+      setBackendStatus("local fallback mode");
     }
     try {
       const { data } = await api.get("/tasks");
@@ -54,8 +53,16 @@ export default function ModeratorAccessApprovalWidget() {
   useEffect(() => {
     load();
     if (!visible) return undefined;
+    const onFocus = () => load();
+    const onStorage = () => load();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
     const timer = setInterval(load, 3000);
-    return () => clearInterval(timer);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+      clearInterval(timer);
+    };
   }, [visible]);
 
   async function approve(request) {
@@ -65,7 +72,7 @@ export default function ModeratorAccessApprovalWidget() {
       } else {
         await api.post(`/workflow/moderator-finance/requests/${request.id}/approve`);
       }
-      setNotice("Approved for 6 hours. Ask Moderator to hard refresh the overview page.");
+      setNotice("Approved for 6 hours. Moderator should refresh the overview page.");
       await load();
     } catch {
       setNotice("Could not approve yet.");
@@ -90,34 +97,41 @@ export default function ModeratorAccessApprovalWidget() {
 
   return (
     <div className="fixed bottom-5 right-5 z-50 w-[410px] max-w-[calc(100vw-2rem)] rounded-2xl border border-blue-500/20 bg-zinc-950/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl">
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] uppercase tracking-[0.25em] text-blue-300">Moderator Request Center</div>
           <h3 className="mt-1 text-sm font-semibold text-white">Finance access approval</h3>
-          <div className="mt-1 text-[11px] text-zinc-500">Status: {backendStatus === "connected" ? "backend connected" : backendStatus === "fallback" ? "fallback mode" : "checking"}</div>
+          <div className="mt-1 text-[11px] text-zinc-500">{backendStatus} · {requests.length} pending</div>
         </div>
-        <button onClick={load} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 hover:bg-white/10">Reload</button>
+        <div className="flex gap-2">
+          <button onClick={load} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 hover:bg-white/10">Reload</button>
+          <button onClick={() => setCollapsed(!collapsed)} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 hover:bg-white/10">{collapsed ? "Open" : "Hide"}</button>
+        </div>
       </div>
-      {notice && <div className="mb-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-200">{notice}</div>}
-      {requests.length === 0 ? (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">No pending Moderator finance requests.</div>
-      ) : (
-        <div className="space-y-2">
-          {requests.slice(0, 5).map((request) => {
-            const id = request.id || request.moderator_id;
-            const name = request.moderator_name || request.moderator_email || "Moderator";
-            return (
-              <div key={id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                <div className="truncate text-sm font-medium text-white">{name}</div>
-                <div className="text-xs text-zinc-500">Requested revenue/profit visibility for 6 hours</div>
-                <div className="mt-3 flex gap-2">
-                  <button onClick={() => approve(request)} className="flex-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white" style={{ background: "#0051FF" }}>Approve</button>
-                  <button onClick={() => reject(request)} className="flex-1 rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300">Reject</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {!collapsed && (
+        <>
+          {notice && <div className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-200">{notice}</div>}
+          {requests.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">No pending Moderator finance requests.</div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {requests.slice(0, 5).map((request) => {
+                const id = request.id || request.moderator_id;
+                const name = request.moderator_name || request.moderator_email || "Moderator";
+                return (
+                  <div key={id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <div className="truncate text-sm font-medium text-white">{name}</div>
+                    <div className="text-xs text-zinc-500">Requested revenue/profit visibility for 6 hours</div>
+                    <div className="mt-3 flex gap-2">
+                      <button onClick={() => approve(request)} className="flex-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white" style={{ background: "#0051FF" }}>Approve</button>
+                      <button onClick={() => reject(request)} className="flex-1 rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300">Reject</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
