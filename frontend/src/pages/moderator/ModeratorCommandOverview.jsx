@@ -3,7 +3,11 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import {
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   PolarAngleAxis,
@@ -13,6 +17,8 @@ import {
   RadarChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 
 const LIVE_REFRESH_MS = 1000;
@@ -92,9 +98,19 @@ function nameOf(user, fallback = "Unknown") {
 
 function metricColor(status) {
   if (status === "overloaded" || status === "revision") return "bad";
-  if (status === "busy" || status === "pending" || status === "awaiting_admin_approval" || status === "submitted" || status === "client_review") return "warn";
-  if (status === "completed" || status === "available") return "good";
+  if (["busy", "pending", "awaiting_admin_approval", "submitted", "client_review"].includes(status)) return "warn";
+  if (["completed", "available"].includes(status)) return "good";
   return "default";
+}
+
+function taskDate(task) {
+  const raw = task?.created_at || task?.updated_at || task?.deadline;
+  if (!raw) return null;
+  return String(raw).slice(0, 10);
+}
+
+function isPendingProject(status) {
+  return ["available", "pending", "awaiting_admin_approval", "submitted", "client_review"].includes(groupStatus(status));
 }
 
 function Card({ title, value, helper, tone = "blue" }) {
@@ -123,6 +139,27 @@ function Panel({ children, className = "", border = "border-white/10", gradient 
 
 function Badge({ children, tone = "default" }) {
   return <span className={`rounded-full border px-2.5 py-1 text-[11px] ${badgeTone[tone] || badgeTone.default}`}>{children}</span>;
+}
+
+function StatusBreakdownPanel({ statusData }) {
+  return (
+    <Panel border="border-purple-500/15" gradient="from-purple-500/5 via-zinc-900/30 to-zinc-950">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-purple-300">Status breakdown</div>
+        <Badge>{statusData.length} statuses</Badge>
+      </div>
+      {statusData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={82} label={({ name, value }) => `${labelStatus(name)} (${value})`}>
+              {statusData.map((item, index) => <Cell key={`${item.name}-${index}`} fill={statusColors[groupStatus(item.name)] || "#52525B"} />)}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: "#18181B", border: "1px solid #27272A", borderRadius: 6 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      ) : <div className="text-sm text-zinc-500">No project status data yet.</div>}
+    </Panel>
+  );
 }
 
 export default function ModeratorCommandOverview() {
@@ -194,6 +231,28 @@ export default function ModeratorCommandOverview() {
       counts[key] = (counts[key] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [tasks]);
+
+  const projectAnalytics = useMemo(() => {
+    const today = new Date();
+    const days = {};
+    for (let i = 29; i >= 0; i -= 1) {
+      const date = new Date(today);
+      date.setHours(0, 0, 0, 0);
+      date.setDate(today.getDate() - i);
+      const key = date.toISOString().slice(0, 10);
+      days[key] = { date: key, total_projects: 0, completed_projects: 0, pending_projects: 0 };
+    }
+
+    toArray(tasks).forEach((task) => {
+      const day = taskDate(task);
+      if (!day || !days[day]) return;
+      days[day].total_projects += 1;
+      if (groupStatus(task.status) === "completed") days[day].completed_projects += 1;
+      if (isPendingProject(task.status)) days[day].pending_projects += 1;
+    });
+
+    return Object.values(days);
   }, [tasks]);
 
   const stats = useMemo(() => {
@@ -385,6 +444,25 @@ export default function ModeratorCommandOverview() {
             <Card title="Clients" value={stats.clients} helper="Active accounts" tone="zinc" />
             <Card title="Pending Requests" value={stats.pending} helper="Editor requests waiting" tone="blue" />
             <Card title="Deadline Risk" value={stats.deadlineRisk} helper="Due soon or overdue" tone={stats.deadlineRisk > 0 ? "red" : "emerald"} />
+          </div>
+
+          <div className="mb-6 grid gap-4 lg:grid-cols-3">
+            <Panel className="lg:col-span-2" border="border-blue-500/15" gradient="from-blue-500/5 via-zinc-900/30 to-zinc-950">
+              <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-blue-300">Projects · Completed · Pending (last 30 days)</div>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={projectAnalytics}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272A" />
+                  <XAxis dataKey="date" stroke="#71717A" fontSize={10} tickFormatter={(date) => String(date).slice(5)} />
+                  <YAxis stroke="#71717A" fontSize={10} allowDecimals={false} />
+                  <Tooltip contentStyle={{ backgroundColor: "#18181B", border: "1px solid #27272A", borderRadius: 6 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line type="monotone" dataKey="total_projects" name="total projects" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="completed_projects" name="completed projects" stroke="#10B981" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="pending_projects" name="pending projects" stroke="#F59E0B" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </Panel>
+            <StatusBreakdownPanel statusData={statusData} />
           </div>
 
           <div className="mb-6 grid gap-4 lg:grid-cols-[1.1fr,.9fr]">
@@ -614,25 +692,6 @@ export default function ModeratorCommandOverview() {
                 ))}
                 {tasks.length === 0 && <div className="text-sm text-zinc-500">No tasks yet.</div>}
               </div>
-            </Panel>
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            <Panel className="lg:col-span-3" border="border-purple-500/15" gradient="from-purple-500/5 via-zinc-900/30 to-zinc-950">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-purple-300">Status breakdown</div>
-                <Badge>{statusData.length} statuses</Badge>
-              </div>
-              {statusData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={82} label={({ name, value }) => `${labelStatus(name)} (${value})`}>
-                      {statusData.map((item, index) => <Cell key={`${item.name}-${index}`} fill={statusColors[groupStatus(item.name)] || "#52525B"} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: "#18181B", border: "1px solid #27272A", borderRadius: 6 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : <div className="text-sm text-zinc-500">No project status data yet.</div>}
             </Panel>
           </div>
         </div>
