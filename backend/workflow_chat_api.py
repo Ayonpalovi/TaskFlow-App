@@ -5,6 +5,8 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException
 
+ALL_CHAT_ROLES = {"admin", "moderator", "editor", "client"}
+
 
 def public_user(user: dict, viewer_role: str = "user") -> dict:
     role = user.get("role")
@@ -38,56 +40,86 @@ def sender_name(user: dict) -> str:
     return user.get("anime_name") if user.get("role") == "editor" else user.get("real_name") or user.get("display_name") or user.get("email") or "User"
 
 
-def normalize_moderator_pair(moderator_id: str, other_id: str) -> str:
-    return f"moddm:{moderator_id}:{other_id}"
+def normalize_moderator_pair(
+    first_id: str,
+    second_id: str,
+    first_role: Optional[str] = None,
+    second_role: Optional[str] = None,
+) -> str:
+    if first_role == "moderator" and second_role == "moderator":
+        participant_a, participant_b = sorted([first_id, second_id])
+        return f"moddm:{participant_a}:{participant_b}"
+    if first_role == "moderator":
+        return f"moddm:{first_id}:{second_id}"
+    if second_role == "moderator":
+        return f"moddm:{second_id}:{first_id}"
+    participant_a, participant_b = sorted([first_id, second_id])
+    return f"moddm:{participant_a}:{participant_b}"
 
 
 async def normalize_chat_channel(server, user: dict, channel: str) -> str:
     if not channel:
         raise HTTPException(400, "Missing channel")
 
+    user_role = user.get("role")
+    user_id = user.get("id")
+
     if channel == "group":
-        if user.get("role") in {"admin", "editor", "moderator"}:
+        if user_role == "editor":
             return "group"
-        raise HTTPException(403, "Only admins, moderators, and editors can use the editors group")
+        raise HTTPException(403, "Only editors can use the editor group chat")
 
     if channel.startswith("moddm:"):
         parts = channel.split(":")
         if len(parts) != 3:
             raise HTTPException(400, "Invalid moderator DM channel")
-        moderator_id, other_id = parts[1], parts[2]
-        moderator = await get_user(server, moderator_id)
-        other = await get_user(server, other_id)
-        if moderator.get("role") != "moderator":
+        first_id, second_id = parts[1], parts[2]
+        first = await get_user(server, first_id)
+        second = await get_user(server, second_id)
+        participant_roles = {first.get("role"), second.get("role")}
+        if "moderator" not in participant_roles:
             raise HTTPException(400, "Invalid moderator channel")
-        if other.get("role") not in {"admin", "editor", "client"}:
-            raise HTTPException(400, "Moderator can only DM admins, editors, and clients")
-        if user.get("id") not in {moderator_id, other_id}:
+        if not participant_roles.issubset(ALL_CHAT_ROLES):
+            raise HTTPException(400, "Invalid chat participant")
+        if user_id not in {first_id, second_id}:
             raise HTTPException(403, "You do not have access to this moderator conversation")
-        return normalize_moderator_pair(moderator_id, other_id)
+        return normalize_moderator_pair(first_id, second_id, first.get("role"), second.get("role"))
 
     if channel.startswith("dm:"):
         target_id = channel.split("dm:", 1)[1]
         if not target_id:
             raise HTTPException(400, "Invalid DM channel")
-        target = await get_user(server, target_id)
+        if target_id == user_id:
+            raise HTTPException(400, "You cannot DM yourself")
 
-        if user.get("role") == "admin":
-            if target.get("role") == "moderator":
-                return normalize_moderator_pair(target["id"], user["id"])
-            if target.get("role") not in {"client", "editor"}:
-                raise HTTPException(403, "Admin can only DM clients, editors, or moderators")
+        target = await get_user(server, target_id)
+        target_role = target.get("role")
+
+        if user_role == "admin":
+            if target_role not in ALL_CHAT_ROLES:
+                raise HTTPException(403, "Admin can only DM admins, moderators, editors, or clients")
+            if target_role == "moderator":
+                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
             return f"dm:{target_id}"
 
-        if user.get("role") == "moderator":
-            if target.get("role") not in {"admin", "editor", "client"}:
-                raise HTTPException(403, "Moderator can only DM admins, editors, or clients")
-            return normalize_moderator_pair(user["id"], target_id)
+        if user_role == "moderator":
+            if target_role not in ALL_CHAT_ROLES:
+                raise HTTPException(403, "Moderator can only DM admins, moderators, editors, or clients")
+            return normalize_moderator_pair(user_id, target_id, user_role, target_role)
 
-        if user.get("role") in {"client", "editor"}:
-            if target.get("role") == "moderator":
-                return normalize_moderator_pair(target_id, user["id"])
-            return f"dm:{user['id']}"
+        if user_role == "editor":
+            if target_role == "moderator":
+                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
+            if target_role == "admin":
+                return f"dm:{user_id}"
+            raise HTTPException(403, "Editors can only DM admins or moderators")
+
+        if user_role == "client":
+            if target_role == "moderator":
+                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
+            if target_role == "admin":
+                return f"dm:{user_id}"
+            raise HTTPException(403, "Clients can only DM admins or moderators")
 
     raise HTTPException(403, "You do not have access to this conversation")
 
@@ -96,10 +128,8 @@ def attach_workflow_chat_routes(router, server):
     @router.get("/chat/conversations")
     async def workflow_chat_conversations(user: dict = Depends(server.get_current_user)):
         role = user.get("role")
-        if role == "admin":
-            query = {"role": {"$in": ["editor", "client", "moderator"]}}
-        elif role == "moderator":
-            query = {"role": {"$in": ["admin", "editor", "client"]}}
+        if role in {"admin", "moderator"}:
+            query = {"role": {"$in": ["admin", "moderator", "editor", "client"]}}
         elif role in {"editor", "client"}:
             query = {"role": {"$in": ["admin", "moderator"]}}
         else:
