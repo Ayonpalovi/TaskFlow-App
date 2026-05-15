@@ -40,7 +40,16 @@ def sender_name(user: dict) -> str:
     return user.get("anime_name") if user.get("role") == "editor" else user.get("real_name") or user.get("display_name") or user.get("email") or "User"
 
 
-def normalize_moderator_pair(first_id: str, second_id: str) -> str:
+def normalize_moderator_pair(
+    first_id: str,
+    second_id: str,
+    first_role: Optional[str] = None,
+    second_role: Optional[str] = None,
+) -> str:
+    if first_role == "moderator":
+        return f"moddm:{first_id}:{second_id}"
+    if second_role == "moderator":
+        return f"moddm:{second_id}:{first_id}"
     participant_a, participant_b = sorted([first_id, second_id])
     return f"moddm:{participant_a}:{participant_b}"
 
@@ -71,7 +80,7 @@ async def normalize_chat_channel(server, user: dict, channel: str) -> str:
             raise HTTPException(400, "Invalid chat participant")
         if user_id not in {first_id, second_id}:
             raise HTTPException(403, "You do not have access to this moderator conversation")
-        return normalize_moderator_pair(first_id, second_id)
+        return normalize_moderator_pair(first_id, second_id, first.get("role"), second.get("role"))
 
     if channel.startswith("dm:"):
         target_id = channel.split("dm:", 1)[1]
@@ -87,24 +96,24 @@ async def normalize_chat_channel(server, user: dict, channel: str) -> str:
             if target_role not in ALL_CHAT_ROLES:
                 raise HTTPException(403, "Admin can only DM admins, moderators, editors, or clients")
             if target_role == "moderator":
-                return normalize_moderator_pair(target_id, user_id)
+                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
             return f"dm:{target_id}"
 
         if user_role == "moderator":
             if target_role not in ALL_CHAT_ROLES:
                 raise HTTPException(403, "Moderator can only DM admins, moderators, editors, or clients")
-            return normalize_moderator_pair(user_id, target_id) if target_role == "moderator" else normalize_moderator_pair(user_id, target_id)
+            return normalize_moderator_pair(user_id, target_id, user_role, target_role)
 
         if user_role == "editor":
             if target_role == "moderator":
-                return normalize_moderator_pair(target_id, user_id)
+                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
             if target_role == "admin":
                 return f"dm:{user_id}"
             raise HTTPException(403, "Editors can only DM admins or moderators")
 
         if user_role == "client":
             if target_role == "moderator":
-                return normalize_moderator_pair(target_id, user_id)
+                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
             if target_role == "admin":
                 return f"dm:{user_id}"
             raise HTTPException(403, "Clients can only DM admins or moderators")
