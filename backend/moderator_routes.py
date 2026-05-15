@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +9,27 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def parse_time(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
 SAFE_STATUSES = ["available", "active", "submitted", "client_review", "revision", "completed"]
+STATUS_LABELS = {
+    "available": "available",
+    "active": "active",
+    "submitted": "awaiting_admin_approval",
+    "pending": "awaiting_admin_approval",
+    "admin_review": "awaiting_admin_approval",
+    "client_review": "client_review",
+    "revision": "revision",
+    "completed": "completed",
+}
+STATUS_ORDER = ["available", "active", "awaiting_admin_approval", "client_review", "revision", "completed"]
 
 
 class ModeratorTaskUpdateIn(BaseModel):
@@ -32,6 +52,14 @@ class ModeratorEscalationIn(BaseModel):
     category: str = "general"
 
 
+def normalized_status(task):
+    return STATUS_LABELS.get(str(task.get("status") or "available"), str(task.get("status") or "available"))
+
+
+def task_date(task):
+    return parse_time(task.get("created_at") or task.get("updated_at") or task.get("deadline")) or datetime.now(timezone.utc)
+
+
 def clean_task(task):
     item = dict(task)
     item.pop("_id", None)
@@ -50,6 +78,31 @@ def safe_user(user):
     item.pop("password_hash", None)
     item.pop("invite_hash", None)
     return item
+
+
+def build_status_breakdown(tasks):
+    counts = {key: 0 for key in STATUS_ORDER}
+    for task in tasks:
+        key = normalized_status(task)
+        counts[key] = counts.get(key, 0) + 1
+    return [{"name": key, "value": counts.get(key, 0)} for key in STATUS_ORDER]
+
+
+def build_operations_trend(tasks):
+    today = datetime.now(timezone.utc).date()
+    rows = []
+    for offset in range(29, -1, -1):
+        day = today - timedelta(days=offset)
+        day_tasks = [task for task in tasks if task_date(task).date() == day]
+        rows.append({
+            "date": day.isoformat(),
+            "tasks": len(day_tasks),
+            "active": sum(1 for task in day_tasks if normalized_status(task) == "active"),
+            "reviews": sum(1 for task in day_tasks if normalized_status(task) in ["awaiting_admin_approval", "client_review"]),
+            "revisions": sum(1 for task in day_tasks if normalized_status(task) == "revision"),
+            "completed": sum(1 for task in day_tasks if normalized_status(task) == "completed"),
+        })
+    return rows
 
 
 def build_moderator_router(server):
@@ -116,13 +169,14 @@ def build_moderator_router(server):
                 "assigned_team_member": editor.get("anime_name") or editor.get("real_name") or "Unassigned",
                 "assigned_editor_id": task.get("assigned_editor_id"),
                 "current_status": task.get("status"),
+                "status_group": normalized_status(task),
                 "deadline": task.get("deadline"),
                 "priority": task.get("priority", "medium"),
             })
 
         workload = []
         for editor in editors:
-            active_count = await server.db.tasks.count_documents({"assigned_editor_id": editor["id"], "status": {"$in": ["active", "submitted", "revision"]}})
+            active_count = await server.db.tasks.count_documents({"assigned_editor_id": editor["id"], "status": {"$in": ["active", "submitted", "client_review", "revision"]}})
             workload.append({
                 "team_member_name": editor.get("anime_name") or editor.get("real_name") or editor.get("email"),
                 "role": "Editor",
@@ -131,16 +185,25 @@ def build_moderator_router(server):
                 "performance_status": "Needs support" if active_count >= 5 else "On track",
             })
 
+        status_breakdown = build_status_breakdown(safe_tasks)
+        operations_daily = build_operations_trend(safe_tasks)
+
         return {
             "overview": {
-                "active_projects": sum(1 for t in safe_tasks if t.get("status") == "active"),
-                "pending_approvals": sum(1 for t in safe_tasks if t.get("status") in ["submitted", "client_review"]),
+                "total_projects": len(safe_tasks),
+                "available_projects": sum(1 for t in safe_tasks if normalized_status(t) == "available"),
+                "active_projects": sum(1 for t in safe_tasks if normalized_status(t) == "active"),
+                "pending_approvals": sum(1 for t in safe_tasks if normalized_status(t) == "awaiting_admin_approval"),
+                "client_review": sum(1 for t in safe_tasks if normalized_status(t) == "client_review"),
                 "urgent_deadlines": sum(1 for t in safe_tasks if t.get("priority") == "urgent"),
-                "revision_requests": sum(1 for t in safe_tasks if t.get("status") == "revision"),
+                "revision_requests": sum(1 for t in safe_tasks if normalized_status(t) == "revision"),
+                "completed": sum(1 for t in safe_tasks if normalized_status(t) == "completed"),
                 "client_messages_waiting": len([m for m in messages if m.get("sender_role") == "client"]),
             },
             "managed_projects": managed_projects,
             "team_workload": workload,
+            "status_breakdown": status_breakdown,
+            "operations_daily": operations_daily,
             "editors": [safe_user(e) | {"name": e.get("anime_name") or e.get("real_name") or e.get("email")} for e in editors],
             "client_communication": {
                 "recent_messages": messages[:10],
