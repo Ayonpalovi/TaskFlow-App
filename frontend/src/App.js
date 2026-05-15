@@ -89,6 +89,17 @@ function ModRoute({ children }) {
   return <ProtectedRoute allowedRoles={["moderator"]}>{children}</ProtectedRoute>;
 }
 
+function AdminOverviewRoute() {
+  return (
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <AdminDashboard />
+      <div className="mx-auto max-w-[1480px] px-4 pb-8 sm:px-6 lg:ml-[228px] lg:px-7">
+        <AdminFinanceAccessApprovalWidget embedded />
+      </div>
+    </ProtectedRoute>
+  );
+}
+
 function App() {
   return (
     <div className="App">
@@ -97,14 +108,13 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
-          <AdminFinanceAccessApprovalWidget />
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
-            <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin" element={<AdminOverviewRoute />} />
             <Route path="/admin/workflow" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/admin/tasks" element={<ProtectedRoute allowedRoles={["admin"]}><AdminTasks /></ProtectedRoute>} />
             <Route path="/admin/create" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCreateTask /></ProtectedRoute>} />
