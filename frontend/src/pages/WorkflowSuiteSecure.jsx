@@ -10,6 +10,7 @@ const PLATFORMS = ["Instagram", "TikTok", "YouTube Shorts", "LinkedIn", "Faceboo
 const CAL_STATUS = ["Brief Submitted", "Editing", "Internal Review", "Sent to Client", "Revision Requested", "Approved", "Scheduled", "Published"];
 const inputCls = "w-full bg-zinc-950 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500";
 const textAreaCls = `${inputCls} min-h-[92px] resize-y`;
+const blankBrandForm = { brand_name: "", website_social_links: "", target_audience: "", business_goal: "", video_goal: "", preferred_video_style: "", reference_video_links: "", brand_colors: "", logo_assets_url: "", tone_of_voice: "", competitors: "", platforms_needed: [], number_of_videos_needed: 1, deadline: "", notes: "" };
 
 function Field({ label, children }) { return <label className="block"><div className="label-xs text-zinc-500 mb-2">{label}</div>{children}</label>; }
 function Panel({ title, subtitle, children }) { return <div className="border border-white/10 rounded-xl bg-zinc-900/30 p-5 shadow-2xl shadow-black/20"><div className="mb-4"><h2 className="text-lg font-semibold">{title}</h2>{subtitle && <p className="text-sm text-zinc-500 mt-1">{subtitle}</p>}</div>{children}</div>; }
@@ -45,7 +46,7 @@ export default function WorkflowSuiteSecure() {
   const [notice, setNotice] = useState("");
   const [activeTab, setActiveTab] = useState(isEditor ? "review" : "onboarding");
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [brandForm, setBrandForm] = useState({ brand_name: "", website_social_links: "", target_audience: "", business_goal: "", video_goal: "", preferred_video_style: "", reference_video_links: "", brand_colors: "", logo_assets_url: "", tone_of_voice: "", competitors: "", platforms_needed: [], number_of_videos_needed: 1, deadline: "", notes: "" });
+  const [brandForm, setBrandForm] = useState(blankBrandForm);
   const [calendarForm, setCalendarForm] = useState({ video_title: "", platform: "Instagram", due_date: "", status: "Brief Submitted" });
   const [happinessForm, setHappinessForm] = useState({ rating: 10, fast_enough: "Yes", clear_communication: "Yes", happy_final: "Yes", work_again: "Yes", feedback: "" });
   const [invoiceForm, setInvoiceForm] = useState({ amount: 0, due_date: "", payment_method: "Bank transfer", notes: "" });
@@ -124,6 +125,23 @@ export default function WorkflowSuiteSecure() {
     finally { setSaving(false); }
   };
 
+  const deleteDoc = async (collection, id, successMessage = "Deleted successfully.") => {
+    if (!window.confirm("Delete this client brand profile? This cannot be undone.")) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await api.delete(`/workflow/${collection}/${id}`);
+      await refresh();
+      playActionFeedback("request");
+      setNotice(successMessage);
+    } catch (e) {
+      setError(formatApiError(e?.response?.data?.detail || e.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveBrandProfile = async () => {
     if (isEditor) return setError("Editors cannot access brand profiles.");
     const ownerId = isClient ? user.id : selectedTask?.client_id;
@@ -131,6 +149,11 @@ export default function WorkflowSuiteSecure() {
     const existing = store.brandProfiles.find((p) => p.client_id === ownerId);
     const payload = { ...brandForm, client_id: ownerId, project_id: selectedTask?.id };
     existing ? await patchDoc("brandProfiles", existing.id, payload) : await createDoc("brandProfiles", payload);
+  };
+
+  const deleteBrandProfile = async (profile) => {
+    await deleteDoc("brandProfiles", profile.id, "Client brand profile deleted.");
+    if (brandForm.id === profile.id) setBrandForm(blankBrandForm);
   };
 
   const createCalendarItem = async () => {
@@ -232,7 +255,7 @@ export default function WorkflowSuiteSecure() {
           </Panel>}
           <Panel title="Client Brand Profiles" subtitle={isOps ? "Ops view of all client brand profiles." : "Your saved brand profile."}>
             {visibleProfiles.length === 0 ? <Empty title="No brand profile yet" /> : visibleProfiles.map((p) => <div key={p.id} className="border border-white/10 rounded-lg p-4 mb-3 bg-black/20">
-              <div className="flex justify-between gap-3"><div><div className="font-semibold">{p.brand_name || "Untitled Brand"}</div><div className="text-xs text-zinc-500 mt-1">Client ID: {p.client_id || "—"}</div></div>{(isOps || isClient) && <button onClick={() => setBrandForm({ ...brandForm, ...p })} className="text-xs text-blue-400">Edit</button>}</div>
+              <div className="flex justify-between gap-3"><div><div className="font-semibold">{p.brand_name || "Untitled Brand"}</div><div className="text-xs text-zinc-500 mt-1">Client ID: {p.client_id || "—"}</div></div>{(isOps || isClient) && <div className="flex items-center gap-3"><button onClick={() => setBrandForm({ ...blankBrandForm, ...p })} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>{isOps && <button onClick={() => deleteBrandProfile(p)} disabled={saving} className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50">Delete</button>}</div>}</div>
               <div className="grid sm:grid-cols-2 gap-3 mt-4 text-xs text-zinc-400">
                 <div><span className="text-zinc-600">Website/socials:</span> {p.website_social_links || "—"}</div><div><span className="text-zinc-600">Audience:</span> {p.target_audience || "—"}</div>
                 <div><span className="text-zinc-600">Business goal:</span> {p.business_goal || "—"}</div><div><span className="text-zinc-600">Video goal:</span> {p.video_goal || "—"}</div>
