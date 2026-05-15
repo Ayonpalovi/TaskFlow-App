@@ -11,11 +11,13 @@ from pydantic import BaseModel, EmailStr
 
 from account_status import now_iso, user_status, visible_user
 
+AssignableRole = Literal["editor", "client", "moderator"]
+
 
 class AccountInviteIn(BaseModel):
     email: EmailStr
     real_name: str
-    role: Literal["editor", "client"] = "editor"
+    role: AssignableRole = "editor"
     skills: List[str] = []
     avatar_url: Optional[str] = None
     charge_per_project: float = 0
@@ -24,7 +26,7 @@ class AccountInviteIn(BaseModel):
 class AccountUpdateIn(BaseModel):
     email: Optional[EmailStr] = None
     real_name: Optional[str] = None
-    role: Optional[Literal["editor", "client"]] = None
+    role: Optional[AssignableRole] = None
     skills: Optional[List[str]] = None
     avatar_url: Optional[str] = None
     charge_per_project: Optional[float] = None
@@ -50,23 +52,19 @@ def send_smtp_email(to_email: str, subject: str, body: str) -> bool:
     password = os.environ.get("SMTP_PASS")
     sender = os.environ.get("SMTP_FROM") or username
     port = int(os.environ.get("SMTP_PORT", "587"))
-
     if not host or not username or not password or not sender or not to_email:
         print("SMTP skipped: missing SMTP env config or recipient")
         return False
-
     try:
         message = EmailMessage()
         message["From"] = sender
         message["To"] = to_email
         message["Subject"] = subject
         message.set_content(body)
-
         with smtplib.SMTP(host, port, timeout=12) as smtp:
             smtp.starttls()
             smtp.login(username, password)
             smtp.send_message(message)
-
         return True
     except Exception as exc:
         print(f"SMTP send failed: {exc}")
@@ -83,6 +81,28 @@ async def activity(server, actor_id: str, action: str, target: dict, meta: Optio
         "metadata": meta or {},
         "created_at": now_iso(),
     })
+
+
+def role_label(role: str) -> str:
+    if role == "moderator":
+        return "Moderator"
+    if role == "client":
+        return "Client"
+    return "Editor"
+
+
+def moderator_defaults(role: str, skills: List[str]) -> dict:
+    if role != "moderator":
+        return {}
+    return {
+        "assigned_departments": skills,
+        "permission_level": "Limited management access",
+        "assigned_projects": [],
+        "tasks_managed": 0,
+        "client_conversations_handled": 0,
+        "team_members_supervised": [],
+        "escalation_notes": [],
+    }
 
 
 def build_account_router(server):
@@ -113,7 +133,7 @@ def build_account_router(server):
             "xp": 0,
             "badges": [],
             "top_videos": [],
-            "charge_per_project": data.charge_per_project,
+            "charge_per_project": data.charge_per_project if data.role == "editor" else 0,
             "invite_hash": hash_invite(invite_value),
             "invite_expires_at": expires_at,
             "invited_at": created_at,
@@ -121,18 +141,18 @@ def build_account_router(server):
             "updated_at": created_at,
             "created_by_admin_id": admin["id"],
             "last_seen": None,
+            **moderator_defaults(data.role, data.skills),
         }
         await server.db.users.insert_one(doc)
 
         invite_body = (
             f"Hi {data.real_name},\n\n"
-            "You have been invited to Motionholic OS. Set up your account here:\n\n"
+            f"You have been invited to Motionholic OS as {role_label(data.role)}. Set up your account here:\n\n"
             f"{invite_link}\n\n"
             f"This invite expires in {invite_days} days.\n\n"
             "— Motionholic OS"
         )
         email_sent = send_smtp_email(email, "You have been invited to Motionholic OS", invite_body)
-
         await activity(server, admin["id"], "user_invited", doc, {"role": data.role, "email_sent": email_sent})
         notification_body = "Invite email sent successfully." if email_sent else "Email is not configured yet. Copy the setup link from the invite result."
         await server.create_notification(admin["id"], "user_invited", f"Invite created for {email}", body=notification_body)
@@ -148,43 +168,39 @@ def build_account_router(server):
             raise HTTPException(404, "User not found")
         if target.get("role") == "admin":
             raise HTTPException(400, "Admin accounts cannot be changed here")
-
         updates = {}
-
         if data.email is not None:
             email = data.email.lower()
             existing = await server.db.users.find_one({"email": email, "id": {"$ne": user_id}})
             if existing:
                 raise HTTPException(400, "Email already exists")
             updates["email"] = email
-
         if data.real_name is not None:
             updates["real_name"] = data.real_name
-
         if data.role is not None:
             updates["role"] = data.role
-
         if data.skills is not None:
             updates["skills"] = data.skills
-
         if data.avatar_url is not None:
             updates["avatar_url"] = data.avatar_url
-
         if data.charge_per_project is not None:
             updates["charge_per_project"] = data.charge_per_project
 
-        if updates.get("role") == "client":
+        final_role = updates.get("role") or target.get("role")
+        if final_role in ["client", "moderator"]:
             updates["anime_name"] = updates.get("real_name") or target.get("real_name") or target.get("anime_name")
-        elif updates.get("role") == "editor" and target.get("role") != "editor":
+            updates["charge_per_project"] = 0
+        elif final_role == "editor" and target.get("role") != "editor":
             updates["anime_name"] = server.generate_anime_name()
-
+        if final_role == "moderator":
+            updates.setdefault("permission_level", target.get("permission_level", "Limited management access"))
+            if data.skills is not None:
+                updates["assigned_departments"] = data.skills
         if not updates:
             raise HTTPException(400, "No changes provided")
-
         updates["updated_at"] = now_iso()
         await server.db.users.update_one({"id": user_id}, {"$set": updates})
         target.update(updates)
-
         await activity(server, admin["id"], "user_updated", target, {"updated_fields": list(updates.keys())})
         await server.create_notification(admin["id"], "user_updated", f"{target.get('email')} was updated")
         return {"ok": True, "user": visible_user(server, target, viewer_role="admin")}
@@ -195,22 +211,13 @@ def build_account_router(server):
             raise HTTPException(400, "Passwords do not match")
         if len(data.password) < 6:
             raise HTTPException(400, "Password must be at least 6 characters")
-
         user = await server.db.users.find_one({"invite_hash": hash_invite(data.token)})
         if not user or user_status(user) != "invited":
             raise HTTPException(400, "Invalid or already used invite link")
-
         expires_at = user.get("invite_expires_at")
         if expires_at and datetime.fromisoformat(expires_at.replace("Z", "+00:00")) < datetime.now(timezone.utc):
             raise HTTPException(400, "This invite link has expired")
-
-        updates = {
-            "password_hash": server.hash_password(data.password),
-            "status": "active",
-            "activated_at": now_iso(),
-            "updated_at": now_iso(),
-            "last_seen": now_iso(),
-        }
+        updates = {"password_hash": server.hash_password(data.password), "status": "active", "activated_at": now_iso(), "updated_at": now_iso(), "last_seen": now_iso()}
         await server.db.users.update_one({"id": user["id"]}, {"$set": updates, "$unset": {"invite_hash": "", "invite_expires_at": ""}})
         user.update(updates)
         token = server.create_access_token(user["id"], user["role"])
@@ -224,7 +231,6 @@ def build_account_router(server):
             raise HTTPException(404, "User not found")
         if target.get("role") == "admin":
             raise HTTPException(400, "Admin accounts cannot be changed here")
-
         deactivation_body = (
             f"Hi {target.get('real_name') or target.get('anime_name') or 'there'},\n\n"
             "Your Motionholic OS account has been deactivated by the admin. You will no longer have access to the dashboard.\n\n"
@@ -233,7 +239,6 @@ def build_account_router(server):
             "— Motionholic OS"
         )
         email_sent = send_smtp_email(target.get("email"), "Your Motionholic OS account has been deactivated", deactivation_body)
-
         updates = {"status": "deactivated", "deactivated_at": now_iso(), "deactivated_by_admin_id": admin["id"], "updated_at": now_iso()}
         await server.db.users.update_one({"id": user_id}, {"$set": updates})
         target.update(updates)
@@ -251,14 +256,8 @@ def build_account_router(server):
         target.update(updates)
         target.pop("deactivated_at", None)
         target.pop("deactivated_by_admin_id", None)
-
-        reactivate_body = (
-            f"Hi {target.get('real_name') or target.get('anime_name') or 'there'},\n\n"
-            f"Your Motionholic OS account has been reactivated. You can sign in again here: {app_url()}/login\n\n"
-            "— Motionholic OS"
-        )
+        reactivate_body = f"Hi {target.get('real_name') or target.get('anime_name') or 'there'},\n\nYour Motionholic OS account has been reactivated. You can sign in again here: {app_url()}/login\n\n— Motionholic OS"
         email_sent = send_smtp_email(target.get("email"), "Your Motionholic OS account has been reactivated", reactivate_body)
-
         await activity(server, admin["id"], "user_reactivated", target, {"email_sent": email_sent})
         await server.create_notification(admin["id"], "user_reactivated", f"{target.get('email')} was reactivated")
         return {"ok": True, "email_sent": email_sent, "user": visible_user(server, target, viewer_role="admin")}
@@ -270,12 +269,10 @@ def build_account_router(server):
             raise HTTPException(404, "User not found")
         if target.get("role") == "admin":
             raise HTTPException(400, "Admin accounts cannot be deleted here")
-
         await activity(server, admin["id"], "user_deleted", target, {"role": target.get("role")})
         result = await server.db.users.delete_one({"id": user_id})
         if result.deleted_count == 0:
             raise HTTPException(404, "User not found")
-
         await server.db.notifications.delete_many({"user_id": user_id})
         await server.create_notification(admin["id"], "user_deleted", f"{target.get('email')} was deleted", body="The login account was removed. Existing project records were not deleted.")
         return {"ok": True, "deleted_user_id": user_id, "email": target.get("email")}
