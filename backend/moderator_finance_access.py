@@ -43,6 +43,26 @@ def state_key(moderator_id):
     return f"moderator_finance_access:{moderator_id}"
 
 
+async def safe_notify_role(server, role, notification_type, title, body="", link=""):
+    try:
+        if hasattr(server, "notify_role"):
+            await server.notify_role(role, notification_type, title, body=body, link=link)
+            return True
+    except Exception as exc:
+        print(f"Moderator finance notify_role failed: {exc}")
+    return False
+
+
+async def safe_create_notification(server, user_id, notification_type, title, body="", link=""):
+    try:
+        if hasattr(server, "create_notification"):
+            await server.create_notification(user_id, notification_type, title, body=body, link=link)
+            return True
+    except Exception as exc:
+        print(f"Moderator finance create_notification failed: {exc}")
+    return False
+
+
 async def get_access_doc(server, moderator_id):
     doc = await server.db.system_state.find_one({"key": state_key(moderator_id)}, {"_id": 0})
     if not doc:
@@ -108,9 +128,11 @@ def build_moderator_finance_router(server):
             "created_at": now_iso(),
         }
         await server.db.activity_logs.insert_one(request_doc.copy())
-        await server.notify_role("admin", "moderator_finance_access_requested", "Moderator requested finance access", body=f"{user.get('real_name') or user.get('email')} requested revenue/profit visibility for 6 hours.", link="/admin/users")
+        notification_sent = await safe_notify_role(server, "admin", "moderator_finance_access_requested", "Moderator requested finance access", body=f"{user.get('real_name') or user.get('email')} requested revenue/profit visibility for 6 hours.", link="/admin/users")
+        request_doc["metadata"]["notification_sent"] = notification_sent
+        await server.db.activity_logs.update_one({"id": request_doc["id"]}, {"$set": {"metadata.notification_sent": notification_sent}})
         request_doc.pop("_id", None)
-        return {"ok": True, "request": request_doc}
+        return {"ok": True, "request": request_doc, "notification_sent": notification_sent}
 
     @router.get("/admin/moderator-finance-access/requests")
     async def list_finance_access_requests(admin: dict = Depends(server.require_role("admin"))):
@@ -132,13 +154,13 @@ def build_moderator_finance_router(server):
         doc = {"key": state_key(moderator_id), "allowed": True, "moderator_id": moderator_id, "granted_by_admin_id": admin["id"], "granted_at": now_iso(), "expires_at": expires_at.isoformat(), "duration_hours": 6}
         await server.db.system_state.update_one({"key": state_key(moderator_id)}, {"$set": doc}, upsert=True)
         await server.db.activity_logs.update_many({"actor_id": moderator_id, "action": "moderator_finance_access_requested", "metadata.status": "pending"}, {"$set": {"metadata.status": "approved", "metadata.approved_by_admin_id": admin["id"], "metadata.approved_at": now_iso(), "metadata.expires_at": expires_at.isoformat()}})
-        await server.create_notification(moderator_id, "finance_access_granted", "Finance access approved", body="Revenue and profit are visible for 6 hours.", link="/moderator/overview")
+        await safe_create_notification(server, moderator_id, "finance_access_granted", "Finance access approved", body="Revenue and profit are visible for 6 hours.", link="/moderator/overview")
         return {"ok": True, "finance_access": {"allowed": True, "expires_at": expires_at.isoformat()}}
 
     @router.post("/admin/moderator-finance-access/revoke/{moderator_id}")
     async def revoke_finance_access(moderator_id: str, admin: dict = Depends(server.require_role("admin"))):
         await server.db.system_state.update_one({"key": state_key(moderator_id)}, {"$set": {"allowed": False, "revoked_by_admin_id": admin["id"], "revoked_at": now_iso()}}, upsert=True)
-        await server.create_notification(moderator_id, "finance_access_revoked", "Finance access revoked", body="Revenue and profit are hidden again.", link="/moderator/overview")
+        await safe_create_notification(server, moderator_id, "finance_access_revoked", "Finance access revoked", body="Revenue and profit are hidden again.", link="/moderator/overview")
         return {"ok": True}
 
     return router
