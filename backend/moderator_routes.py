@@ -42,6 +42,16 @@ def clean_task(task):
     return item
 
 
+def safe_user(user):
+    if not user:
+        return {}
+    item = dict(user)
+    item.pop("_id", None)
+    item.pop("password_hash", None)
+    item.pop("invite_hash", None)
+    return item
+
+
 def build_moderator_router(server):
     router = APIRouter(prefix="/api")
 
@@ -69,7 +79,7 @@ def build_moderator_router(server):
             "status": moderator.get("status", "active"),
             "online": moderator.get("online", False),
             "assigned_departments": moderator.get("assigned_departments") or moderator.get("skills") or [],
-            "permission_level": moderator.get("permission_level", "operations_manager_limited"),
+            "permission_level": moderator.get("permission_level", "Limited operations access"),
             "assigned_projects": assigned_projects,
             "tasks_managed": tasks_managed,
             "client_conversations_handled": client_messages,
@@ -124,13 +134,14 @@ def build_moderator_router(server):
         return {
             "overview": {
                 "active_projects": sum(1 for t in safe_tasks if t.get("status") == "active"),
-                "pending_approvals": sum(1 for t in safe_tasks if t.get("status") == "submitted"),
+                "pending_approvals": sum(1 for t in safe_tasks if t.get("status") in ["submitted", "client_review"]),
                 "urgent_deadlines": sum(1 for t in safe_tasks if t.get("priority") == "urgent"),
                 "revision_requests": sum(1 for t in safe_tasks if t.get("status") == "revision"),
                 "client_messages_waiting": len([m for m in messages if m.get("sender_role") == "client"]),
             },
             "managed_projects": managed_projects,
             "team_workload": workload,
+            "editors": [safe_user(e) | {"name": e.get("anime_name") or e.get("real_name") or e.get("email")} for e in editors],
             "client_communication": {
                 "recent_messages": messages[:10],
                 "pending_replies": [m for m in messages if m.get("sender_role") == "client"][:10],
