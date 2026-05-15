@@ -25,4 +25,4 @@ python-multipart>=0.0.9
 jq>=1.6.0
 typer>=0.9.0
 
-# Redeploy trigger: Moderator role validation now accepts editor, client, and moderator.
+# Redeploy trigger: Moderator finance request and approval routes are registered inside the main moderator router.
