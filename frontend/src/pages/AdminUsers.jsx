@@ -12,19 +12,28 @@ function statusTone(status) {
 }
 
 function RoleTag({ role }) {
-  const isEditor = role === "editor";
+  const styles = {
+    editor: "border-blue-500/25 bg-blue-500/10 text-blue-300",
+    client: "border-violet-500/25 bg-violet-500/10 text-violet-300",
+    moderator: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
+  };
+  const label = role === "moderator" ? "moderator" : role === "editor" ? "editor" : "client";
+  const title = role === "moderator" ? "Moderator account" : role === "editor" ? "Editor account" : "Client account";
 
   return (
-    <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium lowercase ${
-        isEditor
-          ? "border-blue-500/25 bg-blue-500/10 text-blue-300"
-          : "border-violet-500/25 bg-violet-500/10 text-violet-300"
-      }`}
-      title={isEditor ? "Editor account" : "Client account"}
-    >
-      {isEditor ? "editor" : "client"}
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium lowercase ${styles[label]}`} title={title}>
+      {label}
     </span>
+  );
+}
+
+function RoleSelect({ value, onChange, className, testId }) {
+  return (
+    <select data-testid={testId} className={className} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="editor">Editor</option>
+      <option value="client">Client</option>
+      <option value="moderator">Moderator</option>
+    </select>
   );
 }
 
@@ -103,7 +112,7 @@ export default function AdminUsers() {
       const payload = {
         ...f,
         skills: f.skills.split(",").map((s) => s.trim()).filter(Boolean),
-        charge_per_project: Number(f.charge_per_project || 0),
+        charge_per_project: f.role === "editor" ? Number(f.charge_per_project || 0) : 0,
       };
       const { data } = await api.post("/account/users/invite", payload);
       setOpen(false);
@@ -148,7 +157,7 @@ export default function AdminUsers() {
       const payload = {
         ...editF,
         skills: editF.skills.split(",").map((s) => s.trim()).filter(Boolean),
-        charge_per_project: Number(editF.charge_per_project || 0),
+        charge_per_project: editF.role === "editor" ? Number(editF.charge_per_project || 0) : 0,
       };
       await api.patch(`/account/users/${editingUser.id}`, payload);
       setEditingUser(null);
@@ -319,11 +328,8 @@ export default function AdminUsers() {
             <div className="space-y-3">
               <input data-testid="new-user-email" className={inp} placeholder="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
               <input data-testid="new-user-name" className={inp} placeholder="Real Name" value={f.real_name} onChange={(e) => setF({ ...f, real_name: e.target.value })} />
-              <select data-testid="new-user-role" className={inp} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
-                <option value="editor">Editor</option>
-                <option value="client">Client</option>
-              </select>
-              <input className={inp} placeholder="Skills (comma separated)" value={f.skills} onChange={(e) => setF({ ...f, skills: e.target.value })} />
+              <RoleSelect testId="new-user-role" className={inp} value={f.role} onChange={(role) => setF({ ...f, role })} />
+              <input className={inp} placeholder="Skills / Departments (comma separated)" value={f.skills} onChange={(e) => setF({ ...f, skills: e.target.value })} />
               <input className={inp} placeholder="Avatar URL (optional)" value={f.avatar_url} onChange={(e) => setF({ ...f, avatar_url: e.target.value })} />
               {f.role === "editor" && <input type="number" className={inp} placeholder="Editor Charge Per Project (€)" value={f.charge_per_project} onChange={(e) => setF({ ...f, charge_per_project: e.target.value })} />}
               {err && <div className="text-red-400 text-sm">{err}</div>}
@@ -347,11 +353,8 @@ export default function AdminUsers() {
             <div className="space-y-3">
               <input className={inp} placeholder="Email" value={editF.email} onChange={(e) => setEditF({ ...editF, email: e.target.value })} />
               <input className={inp} placeholder="Real Name" value={editF.real_name} onChange={(e) => setEditF({ ...editF, real_name: e.target.value })} />
-              <select className={inp} value={editF.role} onChange={(e) => setEditF({ ...editF, role: e.target.value })}>
-                <option value="editor">Editor</option>
-                <option value="client">Client</option>
-              </select>
-              <input className={inp} placeholder="Skills (comma separated)" value={editF.skills} onChange={(e) => setEditF({ ...editF, skills: e.target.value })} />
+              <RoleSelect className={inp} value={editF.role} onChange={(role) => setEditF({ ...editF, role })} />
+              <input className={inp} placeholder="Skills / Departments (comma separated)" value={editF.skills} onChange={(e) => setEditF({ ...editF, skills: e.target.value })} />
               <input className={inp} placeholder="Avatar URL (optional)" value={editF.avatar_url} onChange={(e) => setEditF({ ...editF, avatar_url: e.target.value })} />
               {editF.role === "editor" && <input type="number" className={inp} placeholder="Editor Charge Per Project (€)" value={editF.charge_per_project} onChange={(e) => setEditF({ ...editF, charge_per_project: e.target.value })} />}
               {err && <div className="text-red-400 text-sm">{err}</div>}
