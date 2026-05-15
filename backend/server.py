@@ -471,7 +471,7 @@ async def create_task(data: TaskCreateIn, user: dict = Depends(get_current_user)
         client_id = user["id"]
         assigned_editor_id = None
         is_draft = False
-    elif user["role"] == "admin":
+    elif user["role"] in ["admin", "moderator"]:
         status = "draft" if data.is_draft else ("active" if data.assigned_editor_id else "available")
         client_id = data.client_id
         assigned_editor_id = data.assigned_editor_id
