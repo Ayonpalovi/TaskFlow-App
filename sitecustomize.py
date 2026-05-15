@@ -217,6 +217,11 @@ def _attach_extension_routers(app):
         if "/api/tasks/{task_id}" not in existing_paths:
             _original_include_router(app, build_task_compat_router(server))
 
+        if "/api/workflow/chat/conversations" not in existing_paths:
+            chat_router = APIRouter(prefix="/api/workflow", tags=["workflow-chat"])
+            attach_workflow_chat_routes(chat_router, server)
+            _original_include_router(app, chat_router)
+
         if "/api/account/users/invite" not in existing_paths:
             _original_include_router(app, build_account_router(server))
 
