@@ -44,6 +44,20 @@ function clearSessionAndRedirect(message) {
   }
 }
 
+function shouldRetryModeratorCreateTask(error) {
+  const config = error?.config || {};
+  const url = String(config.url || "");
+  const method = String(config.method || "").toLowerCase();
+  const status = error?.response?.status;
+
+  return (
+    method === "post" &&
+    url === "/workflow/moderator/tasks" &&
+    [404, 405].includes(status) &&
+    !config._motionholicModeratorTaskRetry
+  );
+}
+
 // Stop silent broken requests when REACT_APP_BACKEND_URL is missing
 api.interceptors.request.use((config) => {
   if (!BACKEND_URL) {
@@ -95,6 +109,15 @@ api.interceptors.response.use((response) => {
 
   return response;
 }, (error) => {
+  if (shouldRetryModeratorCreateTask(error)) {
+    return api.request({
+      ...error.config,
+      url: "/tasks",
+      method: "post",
+      _motionholicModeratorTaskRetry: true,
+    });
+  }
+
   const detail = error?.response?.data?.detail;
   const message = typeof detail === "string" ? detail : "";
 
