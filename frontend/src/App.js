@@ -4,6 +4,7 @@ import "@/App.css";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import DashboardMotionProvider from "./components/DashboardMotionProvider";
+import ModeratorRoleOptionPatch from "./components/ModeratorRoleOptionPatch";
 
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -75,6 +76,7 @@ function App() {
   return (
     <div className="App">
       <PermanentDarkMode />
+      <ModeratorRoleOptionPatch />
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
