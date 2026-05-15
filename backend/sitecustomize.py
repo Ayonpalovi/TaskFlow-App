@@ -12,6 +12,7 @@ _original_include_router = FastAPI.include_router
 _original_call = FastAPI.__call__
 _attached_account = False
 _attached_workflow = False
+_attached_workflow_chat = False
 _attached_moderator = False
 _attached_moderator_account_patch = False
 _attached_moderator_finance = False
@@ -65,6 +66,22 @@ def _attach_workflow_routers(app, server, existing_paths):
     print("Motionholic workflow routes attached")
 
 
+def _attach_workflow_chat_router(app, server, existing_paths):
+    global _attached_workflow_chat
+    if _attached_workflow_chat or "/api/workflow/chat/conversations" in existing_paths:
+        _attached_workflow_chat = True
+        return
+
+    from fastapi import APIRouter
+    from workflow_chat_api import attach_workflow_chat_routes
+
+    chat_router = APIRouter(prefix="/api/workflow", tags=["workflow-chat"])
+    attach_workflow_chat_routes(chat_router, server)
+    _original_include_router(app, chat_router)
+    _attached_workflow_chat = True
+    print("Motionholic workflow chat routes attached")
+
+
 def _attach_moderator_router(app, server, existing_paths):
     global _attached_moderator
     if _attached_moderator or "/api/moderator/dashboard" in existing_paths:
@@ -112,6 +129,11 @@ def _attach_extension_routers(app):
         _attach_workflow_routers(app, server, existing_paths)
     except Exception as exc:
         print(f"Motionholic workflow route loader failed: {exc}")
+
+    try:
+        _attach_workflow_chat_router(app, server, existing_paths)
+    except Exception as exc:
+        print(f"Motionholic workflow chat route loader failed: {exc}")
 
     try:
         _attach_moderator_router(app, server, existing_paths)
