@@ -518,7 +518,7 @@ async def admin_approve_project(task_id: str, admin: dict = Depends(require_role
     return {"ok": True}
 
 @api.post("/tasks/{task_id}/admin-reject")
-async def admin_reject_project(task_id: str, admin: dict = Depends(require_role("admin"))):
+async def admin_reject_project(task_id: str, admin: dict = Depends(require_role("admin", "moderator"))):
     t = await db.tasks.find_one({"id": task_id})
     if not t:
         raise HTTPException(404, "Not found")
