@@ -63,13 +63,14 @@ def build_finance_payload(tasks):
         day_tasks = [task for task in recent if task_date(task).date() == day]
         day_revenue = sum(task_revenue(task) for task in day_tasks)
         day_cost = sum(task_cost(task) for task in day_tasks)
-        days.append({
-            "date": day.isoformat(),
-            "revenue": round(day_revenue, 2),
-            "profit": round(day_revenue - day_cost, 2),
-            "tasks": len(day_tasks),
-        })
+        days.append({"date": day.isoformat(), "revenue": round(day_revenue, 2), "profit": round(day_revenue - day_cost, 2), "tasks": len(day_tasks)})
     return {"monthly_revenue": round(revenue, 2), "monthly_profit": round(revenue - cost, 2), "daily": days}
+
+
+def clean_log(item):
+    doc = dict(item or {})
+    doc.pop("_id", None)
+    return doc
 
 
 def build_moderator_finance_router(server):
@@ -90,6 +91,13 @@ def build_moderator_finance_router(server):
     async def request_finance_access(user: dict = Depends(server.get_current_user)):
         if user.get("role") != "moderator":
             raise HTTPException(403, "Moderator access only")
+        existing = await server.db.activity_logs.find_one({
+            "actor_id": user["id"],
+            "action": "moderator_finance_access_requested",
+            "metadata.status": "pending",
+        }, {"_id": 0})
+        if existing:
+            return {"ok": True, "request": existing, "already_pending": True}
         request_doc = {
             "id": str(server.uuid.uuid4()),
             "actor_id": user["id"],
@@ -100,15 +108,20 @@ def build_moderator_finance_router(server):
             "created_at": now_iso(),
         }
         await server.db.activity_logs.insert_one(request_doc.copy())
-        await server.notify_role(
-            "admin",
-            "moderator_finance_access_requested",
-            "Moderator requested finance access",
-            body=f"{user.get('real_name') or user.get('email')} requested revenue/profit visibility for 6 hours.",
-            link="/admin/users",
-        )
+        await server.notify_role("admin", "moderator_finance_access_requested", "Moderator requested finance access", body=f"{user.get('real_name') or user.get('email')} requested revenue/profit visibility for 6 hours.", link="/admin/users")
         request_doc.pop("_id", None)
         return {"ok": True, "request": request_doc}
+
+    @router.get("/admin/moderator-finance-access/requests")
+    async def list_finance_access_requests(admin: dict = Depends(server.require_role("admin"))):
+        requests = await server.db.activity_logs.find({
+            "action": "moderator_finance_access_requested",
+            "metadata.status": "pending",
+        }, {"_id": 0}).sort("created_at", -1).to_list(50)
+        moderator_ids = [item.get("actor_id") for item in requests if item.get("actor_id")]
+        moderators = await server.db.users.find({"id": {"$in": moderator_ids}}, {"_id": 0, "password_hash": 0}).to_list(100)
+        moderator_map = {m.get("id"): m for m in moderators}
+        return [{**clean_log(item), "moderator": moderator_map.get(item.get("actor_id"), {})} for item in requests]
 
     @router.post("/admin/moderator-finance-access/grant/{moderator_id}")
     async def grant_finance_access(moderator_id: str, admin: dict = Depends(server.require_role("admin"))):
@@ -116,16 +129,9 @@ def build_moderator_finance_router(server):
         if not moderator:
             raise HTTPException(404, "Moderator not found")
         expires_at = now_utc() + timedelta(hours=6)
-        doc = {
-            "key": state_key(moderator_id),
-            "allowed": True,
-            "moderator_id": moderator_id,
-            "granted_by_admin_id": admin["id"],
-            "granted_at": now_iso(),
-            "expires_at": expires_at.isoformat(),
-            "duration_hours": 6,
-        }
+        doc = {"key": state_key(moderator_id), "allowed": True, "moderator_id": moderator_id, "granted_by_admin_id": admin["id"], "granted_at": now_iso(), "expires_at": expires_at.isoformat(), "duration_hours": 6}
         await server.db.system_state.update_one({"key": state_key(moderator_id)}, {"$set": doc}, upsert=True)
+        await server.db.activity_logs.update_many({"actor_id": moderator_id, "action": "moderator_finance_access_requested", "metadata.status": "pending"}, {"$set": {"metadata.status": "approved", "metadata.approved_by_admin_id": admin["id"], "metadata.approved_at": now_iso(), "metadata.expires_at": expires_at.isoformat()}})
         await server.create_notification(moderator_id, "finance_access_granted", "Finance access approved", body="Revenue and profit are visible for 6 hours.", link="/moderator/overview")
         return {"ok": True, "finance_access": {"allowed": True, "expires_at": expires_at.isoformat()}}
 
