@@ -17,7 +17,6 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminCalendar from "./pages/AdminCalendar";
 import AdminApprovals from "./pages/AdminApprovals";
 import AdminPayments from "./pages/AdminPayments";
-import AdminAbsenceMode from "./pages/AdminAbsenceMode";
 
 import Leaderboard from "./pages/Leaderboard";
 import WorkflowSuite from "./pages/WorkflowSuiteSecure";
@@ -32,7 +31,6 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
-import ModeratorDashboard from "./pages/ModeratorDashboard";
 import ChatPage from "./pages/ChatPage";
 
 function PermanentDarkMode() {
@@ -59,7 +57,7 @@ function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user || !user.role) return <Navigate to="/login" replace />;
-  const validRoles = ["admin", "editor", "client", "moderator"];
+  const validRoles = ["admin", "editor", "client"];
   if (!validRoles.includes(user.role)) return <Navigate to="/login" replace />;
   return <Navigate to={`/${user.role}`} replace />;
 }
@@ -92,11 +90,9 @@ function App() {
             <Route path="/admin/approvals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminApprovals /></ProtectedRoute>} />
             <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminPayments /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["admin"]}><AdminUsers /></ProtectedRoute>} />
-            <Route path="/admin/absence" element={<ProtectedRoute allowedRoles={["admin"]}><AdminAbsenceMode /></ProtectedRoute>} />
             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
-            <Route path="/moderator" element={<ProtectedRoute allowedRoles={["moderator"]}><ModeratorDashboard /></ProtectedRoute>} />
             <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
             <Route path="/editor/workflow" element={<ProtectedRoute allowedRoles={["editor"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/editor/profile" element={<ProtectedRoute allowedRoles={["editor"]}><EditorProfile /></ProtectedRoute>} />
