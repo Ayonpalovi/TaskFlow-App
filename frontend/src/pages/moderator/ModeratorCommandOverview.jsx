@@ -553,53 +553,7 @@ export default function ModeratorCommandOverview() {
               </ResponsiveContainer>
             </Panel>
 
-            <Panel border="border-purple-500/15" gradient="from-purple-500/5 via-zinc-900/30 to-zinc-950">
-              <Panel border="border-purple-500/15" gradient="from-purple-500/5 via-zinc-900/30 to-zinc-950">
-  <div className="label-xs mb-4 text-purple-300">Status breakdown</div>
-
-  <ResponsiveContainer width="100%" height={210}>
-    <PieChart>
-      <Pie
-        data={visibleStatusData}
-        dataKey="value"
-        nameKey="name"
-        cx="50%"
-        cy="50%"
-        outerRadius={72}
-        label={false}
-        labelLine={false}
-        isAnimationActive={false}
-      >
-        {visibleStatusData.map((item, index) => (
-          <Cell
-            key={`${item.name}-${index}`}
-            fill={STATUS_COLORS[statusGroup(item.name)] || "#52525B"}
-          />
-        ))}
-      </Pie>
-    </PieChart>
-  </ResponsiveContainer>
-
-  {visibleStatusData.length > 0 ? (
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      {visibleStatusData.map((item) => (
-        <div
-          key={item.name}
-          className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: STATUS_COLORS[statusGroup(item.name)] || "#52525B" }}
-          />
-          <span className="truncate text-zinc-300">{statusLabel(item.name)}</span>
-          <span className="ml-auto font-mono text-zinc-400">({item.value})</span>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <Empty>No project status data yet.</Empty>
-  )}
-</Panel>
+            <div className="label-xs mb-4 text-purple-300">Status breakdown</div>
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie data={statusData.filter((item) => Number(item.value || 0) > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${statusLabel(name)} (${value})`}>
