@@ -751,7 +751,7 @@ async def approve_request(req_id: str, admin: dict = Depends(require_role("admin
     return {"ok": True}
 
 @api.post("/requests/{req_id}/reject")
-async def reject_request(req_id: str, admin: dict = Depends(require_role("admin"))):
+async def reject_request(req_id: str, admin: dict = Depends(require_role("admin", "moderator"))):
     await db.requests.update_one({"id": req_id}, {"$set": {"status": "rejected"}})
     return {"ok": True}
 
