@@ -23,6 +23,19 @@ def _find_server_module():
     return sys.modules.get("server") or sys.modules.get("backend.server") or sys.modules.get("__main__")
 
 
+def _has_route(app, path, method=None):
+    target_method = method.upper() if method else None
+    for route in getattr(app, "routes", []):
+        if getattr(route, "path", "") != path:
+            continue
+        if not target_method:
+            return True
+        methods = getattr(route, "methods", None) or set()
+        if target_method in methods:
+            return True
+    return False
+
+
 def _attach_moderator_account_patch(app, server, existing_paths):
     global _attached_moderator_account_patch
     if _attached_moderator_account_patch:
@@ -85,7 +98,10 @@ def _attach_workflow_chat_router(app, server, existing_paths):
 
 def _attach_moderator_create_task_router(app, server, existing_paths):
     global _attached_moderator_create_task
-    if _attached_moderator_create_task or "/api/workflow/moderator/tasks" in existing_paths:
+    if _attached_moderator_create_task:
+        return
+
+    if _has_route(app, "/api/workflow/moderator/tasks", "POST"):
         _attached_moderator_create_task = True
         return
 
