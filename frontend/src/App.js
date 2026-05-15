@@ -43,6 +43,7 @@ import {
   ModeratorReviews,
   ModeratorEscalations,
   ModeratorCalendar,
+  ModeratorProfile,
 } from "./pages/moderator/ModeratorPages";
 import ChatPage from "./pages/ChatPage";
 
@@ -126,6 +127,7 @@ function App() {
 
             <Route path="/moderator" element={<Navigate to="/moderator/overview" replace />} />
             <Route path="/moderator/overview" element={<ModRoute><ModeratorCommandOverview /></ModRoute>} />
+            <Route path="/moderator/workflow" element={<ModRoute><WorkflowSuite /></ModRoute>} />
             <Route path="/moderator/projects" element={<ModRoute><ModeratorProjects /></ModRoute>} />
             <Route path="/moderator/tasks" element={<ModRoute><ModeratorTasks /></ModRoute>} />
             <Route path="/moderator/create" element={<ModRoute><ModeratorCreateTask /></ModRoute>} />
@@ -135,8 +137,7 @@ function App() {
             <Route path="/moderator/escalations" element={<ModRoute><ModeratorEscalations /></ModRoute>} />
             <Route path="/moderator/calendar" element={<ModRoute><ModeratorCalendar /></ModRoute>} />
             <Route path="/moderator/chat" element={<ModRoute><ChatPage mode="moderator" /></ModRoute>} />
-            <Route path="/moderator/workflow" element={<ModRoute><WorkflowSuite /></ModRoute>} />
-            <Route path="/moderator/profile" element={<ModRoute><WorkflowSuite /></ModRoute>} />
+            <Route path="/moderator/profile" element={<ModRoute><ModeratorProfile /></ModRoute>} />
 
             <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
             <Route path="/editor/workflow" element={<ProtectedRoute allowedRoles={["editor"]}><WorkflowSuite /></ProtectedRoute>} />
