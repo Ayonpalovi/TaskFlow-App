@@ -37,12 +37,12 @@ import ModeratorCommandOverview from "./pages/moderator/ModeratorCommandOverview
 import ModeratorTasks from "./pages/moderator/ModeratorTasks";
 import ModeratorCreateTask from "./pages/moderator/ModeratorCreateTask";
 import ModeratorCalendar from "./pages/moderator/ModeratorCalendar";
+import ModeratorEscalations from "./pages/moderator/ModeratorEscalations";
 import {
   ModeratorProjects,
   ModeratorTeamWorkload,
   ModeratorClientMessages,
   ModeratorReviews,
-  ModeratorEscalations,
   ModeratorProfile,
 } from "./pages/moderator/ModeratorPages";
 import ChatPage from "./pages/ChatPage";
