@@ -36,13 +36,13 @@ import ClientCreateProject from "./pages/ClientCreateProject";
 import ModeratorCommandOverview from "./pages/moderator/ModeratorCommandOverview";
 import ModeratorTasks from "./pages/moderator/ModeratorTasks";
 import ModeratorCreateTask from "./pages/moderator/ModeratorCreateTask";
+import ModeratorCalendar from "./pages/moderator/ModeratorCalendar";
 import {
   ModeratorProjects,
   ModeratorTeamWorkload,
   ModeratorClientMessages,
   ModeratorReviews,
   ModeratorEscalations,
-  ModeratorCalendar,
   ModeratorProfile,
 } from "./pages/moderator/ModeratorPages";
 import ChatPage from "./pages/ChatPage";
