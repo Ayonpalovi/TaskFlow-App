@@ -627,9 +627,10 @@ async def update_task(task_id: str, data: dict, user: dict = Depends(get_current
     if not t:
         raise HTTPException(404, "Task not found")
 
-    if user["role"] == "admin":
-        update_data = data
+    if user["role"] in ["admin", "moderator"]:
+            update_data = data
 
+    
     elif user["role"] == "client":
         if t.get("client_id") != user["id"]:
             raise HTTPException(403, "Forbidden")
