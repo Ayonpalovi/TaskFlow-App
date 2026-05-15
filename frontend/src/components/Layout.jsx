@@ -10,7 +10,6 @@ const adminNav = [
   { label: "Tasks", path: "/admin/tasks", icon: "▦" },
   { label: "Create Task", path: "/admin/create", icon: "▣" },
   { label: "Team", path: "/admin/users", icon: "♧" },
-  { label: "Absence Mode", path: "/admin/absence", icon: "◷" },
   { label: "Payments", path: "/admin/payments", icon: "$" },
   { label: "Calendar", path: "/admin/calendar", icon: "□" },
   { label: "Leaderboard", path: "/admin/leaderboard", icon: "♕" },
