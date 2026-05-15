@@ -21,7 +21,7 @@ function financeFromTasks(tasks) {
   return { monthly_revenue: revenue, monthly_profit: revenue - cost, daily };
 }
 
-export default function ModeratorAccessApprovalWidget() {
+export default function ModeratorAccessApprovalWidget({ embedded = false }) {
   const { user } = useAuth();
   const [requests, setRequests] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -95,8 +95,12 @@ export default function ModeratorAccessApprovalWidget() {
 
   if (!visible) return null;
 
+  const wrapperClass = embedded
+    ? "w-full rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/5 via-zinc-900/30 to-zinc-950 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
+    : "fixed right-6 top-24 z-50 w-[410px] max-w-[calc(100vw-2rem)] rounded-2xl border border-blue-500/20 bg-zinc-950/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl max-sm:left-4 max-sm:right-4 max-sm:top-24 max-sm:w-auto lg:right-8 lg:top-28";
+
   return (
-    <div className="fixed right-6 top-24 z-50 w-[410px] max-w-[calc(100vw-2rem)] rounded-2xl border border-blue-500/20 bg-zinc-950/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl max-sm:left-4 max-sm:right-4 max-sm:top-24 max-sm:w-auto lg:right-8 lg:top-28">
+    <div className={wrapperClass}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] uppercase tracking-[0.25em] text-blue-300">Moderator Request Center</div>
@@ -114,8 +118,8 @@ export default function ModeratorAccessApprovalWidget() {
           {requests.length === 0 ? (
             <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400">No pending Moderator finance requests.</div>
           ) : (
-            <div className="mt-3 space-y-2">
-              {requests.slice(0, 5).map((request) => {
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {requests.slice(0, 6).map((request) => {
                 const id = request.id || request.moderator_id;
                 const name = request.moderator_name || request.moderator_email || "Moderator";
                 return (
