@@ -477,7 +477,7 @@ async def create_task(data: TaskCreateIn, user: dict = Depends(get_current_user)
         assigned_editor_id = data.assigned_editor_id
         is_draft = data.is_draft
     else:
-        raise HTTPException(403, "Only admin or client can create tasks")
+        raise HTTPException(403, "Only admin, moderator or client can create tasks")
 
     payload = data.model_dump()
     payload["client_id"] = client_id
