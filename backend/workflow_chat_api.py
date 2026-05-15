@@ -46,6 +46,9 @@ def normalize_moderator_pair(
     first_role: Optional[str] = None,
     second_role: Optional[str] = None,
 ) -> str:
+    if first_role == "moderator" and second_role == "moderator":
+        participant_a, participant_b = sorted([first_id, second_id])
+        return f"moddm:{participant_a}:{participant_b}"
     if first_role == "moderator":
         return f"moddm:{first_id}:{second_id}"
     if second_role == "moderator":
