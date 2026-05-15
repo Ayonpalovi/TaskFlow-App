@@ -96,7 +96,7 @@ export default function ModeratorAccessApprovalWidget() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 w-[410px] max-w-[calc(100vw-2rem)] rounded-2xl border border-blue-500/20 bg-zinc-950/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl">
+    <div className="fixed right-6 top-24 z-50 w-[410px] max-w-[calc(100vw-2rem)] rounded-2xl border border-blue-500/20 bg-zinc-950/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl max-sm:left-4 max-sm:right-4 max-sm:top-24 max-sm:w-auto lg:right-8 lg:top-28">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] uppercase tracking-[0.25em] text-blue-300">Moderator Request Center</div>
