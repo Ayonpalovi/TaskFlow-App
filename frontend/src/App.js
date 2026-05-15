@@ -43,7 +43,6 @@ import {
   ModeratorReviews,
   ModeratorEscalations,
   ModeratorCalendar,
-  ModeratorChat,
   ModeratorProfile,
 } from "./pages/moderator/ModeratorPages";
 import ChatPage from "./pages/ChatPage";
@@ -136,7 +135,7 @@ function App() {
             <Route path="/moderator/reviews" element={<ModRoute><ModeratorReviews /></ModRoute>} />
             <Route path="/moderator/escalations" element={<ModRoute><ModeratorEscalations /></ModRoute>} />
             <Route path="/moderator/calendar" element={<ModRoute><ModeratorCalendar /></ModRoute>} />
-            <Route path="/moderator/chat" element={<ModRoute><ModeratorChat /></ModRoute>} />
+            <Route path="/moderator/chat" element={<ModRoute><ChatPage mode="moderator" /></ModRoute>} />
             <Route path="/moderator/profile" element={<ModRoute><ModeratorProfile /></ModRoute>} />
 
             <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
