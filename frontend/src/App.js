@@ -5,6 +5,7 @@ import "@/App.css";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import DashboardMotionProvider from "./components/DashboardMotionProvider";
 import ModeratorRoleOptionPatch from "./components/ModeratorRoleOptionPatch";
+import AdminFinanceAccessApprovalWidget from "./components/AdminFinanceAccessApprovalWidget";
 
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -96,6 +97,7 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
+          <AdminFinanceAccessApprovalWidget />
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
