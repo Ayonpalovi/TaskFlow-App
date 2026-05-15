@@ -14,6 +14,7 @@ _attached_account = False
 _attached_workflow = False
 _attached_workflow_chat = False
 _attached_moderator = False
+_attached_moderator_create_task = False
 _attached_moderator_account_patch = False
 _attached_moderator_finance = False
 
@@ -82,6 +83,19 @@ def _attach_workflow_chat_router(app, server, existing_paths):
     print("Motionholic workflow chat routes attached")
 
 
+def _attach_moderator_create_task_router(app, server, existing_paths):
+    global _attached_moderator_create_task
+    if _attached_moderator_create_task or "/api/workflow/moderator/tasks" in existing_paths:
+        _attached_moderator_create_task = True
+        return
+
+    from moderator_create_task_patch import build_moderator_create_task_router
+
+    _original_include_router(app, build_moderator_create_task_router(server))
+    _attached_moderator_create_task = True
+    print("Motionholic moderator create task route attached")
+
+
 def _attach_moderator_router(app, server, existing_paths):
     global _attached_moderator
     if _attached_moderator or "/api/moderator/dashboard" in existing_paths:
@@ -134,6 +148,11 @@ def _attach_extension_routers(app):
         _attach_workflow_chat_router(app, server, existing_paths)
     except Exception as exc:
         print(f"Motionholic workflow chat route loader failed: {exc}")
+
+    try:
+        _attach_moderator_create_task_router(app, server, existing_paths)
+    except Exception as exc:
+        print(f"Motionholic moderator create task route loader failed: {exc}")
 
     try:
         _attach_moderator_router(app, server, existing_paths)
