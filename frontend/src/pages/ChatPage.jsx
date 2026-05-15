@@ -41,6 +41,14 @@ function roleTone(role) {
   return "default";
 }
 
+function conversationSubtitle(mode, role) {
+  if (mode === "moderator") return "DM admins, moderators, editors, and clients";
+  if (role === "admin") return "DM admins, moderators, editors, and clients";
+  if (role === "editor") return "Admin/moderator DMs and editor group chat";
+  if (role === "client") return "Direct messages with admin and moderator";
+  return "Direct messages";
+}
+
 function ReactionRow({ msg, onReact }) {
   const reactions = msg.reactions || {};
   return (
@@ -138,11 +146,14 @@ function ChatWorkspace({ mode }) {
   const fetchConversations = async () => {
     const { data } = await api.get("/workflow/chat/conversations");
     const list = Array.isArray(data) ? data : [];
-    const withGroup = user?.role === "admin" || user?.role === "editor" || user?.role === "moderator"
-      ? [{ id: "group", role: "group", display_name: "Editors Group", subtitle: "Admin + moderators + editors" }, ...list]
+    const withGroup = user?.role === "editor"
+      ? [{ id: "group", role: "group", display_name: "Editors Group", subtitle: "Editor-only group chat" }, ...list]
       : list;
     setConversations(withGroup);
-    setSelected((current) => current || withGroup[0] || null);
+    setSelected((current) => {
+      if (current && withGroup.some((item) => item.id === current.id)) return current;
+      return withGroup[0] || null;
+    });
   };
 
   const fetchMessages = async (channel = activeChannel) => {
@@ -236,7 +247,7 @@ function ChatWorkspace({ mode }) {
         <div className="border-b border-white/10 p-4">
           <div className="text-sm font-semibold">Conversations</div>
           <div className="mt-1 text-xs text-zinc-500">
-            {mode === "moderator" ? "Admin, editors, clients, and editors group" : "Team and direct messages"}
+            {conversationSubtitle(mode, user?.role)}
           </div>
         </div>
         <div className="max-h-full overflow-y-auto">
@@ -257,7 +268,7 @@ function ChatWorkspace({ mode }) {
           <div className="flex items-center justify-between border-b border-white/10 p-4">
             <div>
               <div className="text-sm font-semibold">{selected?.display_name || selected?.real_name || "Select a conversation"}</div>
-              <div className="mt-1 text-xs text-zinc-500">{selected?.id === "group" ? "Editors group chat" : selected?.role ? `Direct message · ${selected.role}` : "Choose someone to start"}</div>
+              <div className="mt-1 text-xs text-zinc-500">{selected?.id === "group" ? "Editor-only group chat" : selected?.role ? `Direct message · ${selected.role}` : "Choose someone to start"}</div>
             </div>
             {selected?.role && <Badge tone={roleTone(selected.role)}>{selected.role}</Badge>}
           </div>
@@ -338,10 +349,12 @@ export default function ChatPage({ mode }) {
   const { user } = useAuth();
   const title = mode === "moderator" ? "Moderator Chat" : "Messages";
   const subtitle = mode === "moderator"
-    ? "Text Admin, editors, clients, and the editors group. Everyone can reply back to the moderator."
+    ? "Direct messages with admins, moderators, editors, and clients."
     : mode === "client"
       ? "Direct line to the agency admin and moderator."
-      : "Group chat and direct messages.";
+      : mode === "editor"
+        ? "Direct line to admin/moderators, plus the editor-only group chat."
+        : "Direct messages with admins, moderators, editors, and clients.";
 
   if (mode === "moderator") {
     return (
