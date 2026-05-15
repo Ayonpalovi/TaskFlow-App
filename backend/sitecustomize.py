@@ -13,10 +13,23 @@ _original_call = FastAPI.__call__
 _attached_account = False
 _attached_workflow = False
 _attached_moderator = False
+_attached_moderator_account_patch = False
 
 
 def _find_server_module():
     return sys.modules.get("server") or sys.modules.get("backend.server") or sys.modules.get("__main__")
+
+
+def _attach_moderator_account_patch(app, server, existing_paths):
+    global _attached_moderator_account_patch
+    if _attached_moderator_account_patch:
+        return
+
+    from moderator_account_patch import build_moderator_account_patch_router
+
+    _original_include_router(app, build_moderator_account_patch_router(server))
+    _attached_moderator_account_patch = True
+    print("Motionholic moderator account patch routes attached")
 
 
 def _attach_account_router(app, server, existing_paths):
@@ -70,6 +83,11 @@ def _attach_extension_routers(app):
         return
 
     existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
+
+    try:
+        _attach_moderator_account_patch(app, server, existing_paths)
+    except Exception as exc:
+        print(f"Motionholic moderator account patch loader failed: {exc}")
 
     try:
         _attach_account_router(app, server, existing_paths)
