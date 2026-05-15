@@ -665,7 +665,7 @@ async def update_task(task_id: str, data: dict, user: dict = Depends(get_current
             raise HTTPException(400, "No editable fields provided")
 
     else:
-        raise HTTPException(403, "Only admin or client can edit projects")
+        raise HTTPException(403, "Only admin, moderator or client can edit projects")
 
     update_data.pop("id", None)
     update_data.pop("_id", None)
