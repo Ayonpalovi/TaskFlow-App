@@ -19,6 +19,7 @@ _attached_task_create_override = False
 _attached_moderator_create_task = False
 _attached_moderator_account_patch = False
 _attached_moderator_finance = False
+_attached_moderator_escalation_notify = False
 
 
 def _find_server_module():
@@ -299,6 +300,21 @@ def _attach_moderator_finance_router(app, server, existing_paths):
     print("Motionholic moderator finance routes attached")
 
 
+def _attach_moderator_escalation_notify_router(app, server, existing_paths):
+    global _attached_moderator_escalation_notify
+    if _attached_moderator_escalation_notify:
+        return
+
+    from moderator_escalation_notify_patch import build_moderator_escalation_notify_router
+
+    before = {id(route) for route in getattr(app, "routes", [])}
+    _original_include_router(app, build_moderator_escalation_notify_router(server))
+    new_routes = [route for route in getattr(app, "routes", []) if id(route) not in before]
+    _move_routes_before_existing(app, new_routes, "/api/moderator/escalations", "POST")
+    _attached_moderator_escalation_notify = True
+    print("Motionholic moderator escalation notification route attached")
+
+
 def _attach_extension_routers(app):
     server = _find_server_module()
     if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
@@ -345,6 +361,11 @@ def _attach_extension_routers(app):
         _attach_moderator_finance_router(app, server, existing_paths)
     except Exception as exc:
         print(f"Motionholic moderator finance route loader failed: {exc}")
+
+    try:
+        _attach_moderator_escalation_notify_router(app, server, existing_paths)
+    except Exception as exc:
+        print(f"Motionholic moderator escalation notification loader failed: {exc}")
 
 
 def _patched_include_router(self, router, *args, **kwargs):
