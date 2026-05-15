@@ -507,7 +507,7 @@ async def create_task(data: TaskCreateIn, user: dict = Depends(get_current_user)
     return doc
 
 @api.post("/tasks/{task_id}/admin-approve")
-async def admin_approve_project(task_id: str, admin: dict = Depends(require_role("admin"))):
+async def admin_approve_project(task_id: str, admin: dict = Depends(require_role("admin", "moderator"))):
     t = await db.tasks.find_one({"id": task_id})
     if not t or t.get("status") != "pending_admin_approval":
         raise HTTPException(400, "Task not pending approval")
