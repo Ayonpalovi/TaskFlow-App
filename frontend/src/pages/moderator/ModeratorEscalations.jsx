@@ -44,6 +44,7 @@ export default function ModeratorEscalations() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
 
   const loadEscalations = async () => {
     try {
@@ -95,6 +96,25 @@ export default function ModeratorEscalations() {
     }
   };
 
+  const deleteEscalation = async (item) => {
+    if (!item?.id) return;
+    if (!window.confirm("Delete this escalation note?")) return;
+
+    setError("");
+    setNotice("");
+    setDeletingId(item.id);
+
+    try {
+      await api.delete(`/workflow/brandProfiles/${item.id}`);
+      setItems((prev) => prev.filter((note) => note.id !== item.id));
+      setNotice("Escalation note deleted.");
+    } catch (e) {
+      setError(formatApiError(e?.response?.data?.detail || e.message));
+    } finally {
+      setDeletingId("");
+    }
+  };
+
   return (
     <Layout allowed={["moderator"]}>
       <PageHeader label="Moderator / Escalations" title="Escalations" subtitle="Send issues directly to the Admin Overview page." />
@@ -116,7 +136,8 @@ export default function ModeratorEscalations() {
             const title = getTitle(item);
             const category = item.category || "issue";
             const body = getBody(item);
-            return <div key={item.id} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm"><div className="flex items-start justify-between gap-3"><div><div className="font-medium text-amber-100">{title}</div><div className="mt-1 text-xs text-amber-200/70">{category} · {formatDate(item.created_at)}</div></div><Badge tone="good">sent to admin</Badge></div>{body && <p className="mt-3 text-amber-100/80">{body}</p>}</div>;
+            const deleting = deletingId === item.id;
+            return <div key={item.id} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm"><div className="flex items-start justify-between gap-3"><div><div className="font-medium text-amber-100">{title}</div><div className="mt-1 text-xs text-amber-200/70">{category} · {formatDate(item.created_at)}</div></div><div className="flex items-center gap-2"><Badge tone="good">sent to admin</Badge><button onClick={() => deleteEscalation(item)} disabled={deleting} className="rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs text-red-300 hover:bg-red-500/20 disabled:opacity-50">{deleting ? "Deleting…" : "Delete"}</button></div></div>{body && <p className="mt-3 text-amber-100/80">{body}</p>}</div>;
           })}</div> : <Empty>No escalation notes yet.</Empty>}
         </Card>
       </div>
