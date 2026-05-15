@@ -34,9 +34,9 @@ import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
 import ModeratorCommandOverview from "./pages/moderator/ModeratorCommandOverview";
+import ModeratorTasks from "./pages/moderator/ModeratorTasks";
 import {
   ModeratorProjects,
-  ModeratorTasks,
   ModeratorTeamWorkload,
   ModeratorClientMessages,
   ModeratorReviews,
