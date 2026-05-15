@@ -6,7 +6,26 @@ export default function ModeratorCalendar() {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
-    api.get("/calendar").then((response) => setItems(Array.isArray(response.data) ? response.data : []));
+    const loadCalendar = async () => {
+      try {
+        const response = await api.get("/tasks");
+        const tasks = Array.isArray(response.data) ? response.data : [];
+        const calendarItems = tasks
+          .filter((task) => task.status !== "draft" && task.deadline)
+          .map((task) => ({
+            task_id: task.id,
+            title: task.title,
+            deadline: task.deadline,
+            status: task.status,
+            priority: task.priority,
+          }));
+        setItems(calendarItems);
+      } catch {
+        setItems([]);
+      }
+    };
+
+    loadCalendar();
   }, []);
 
   const byDate = items.reduce((acc, item) => {
@@ -26,7 +45,7 @@ export default function ModeratorCalendar() {
             <div className="label-xs text-zinc-400 mb-3 font-mono">{date}</div>
             <div className="space-y-2">
               {byDate[date].map((task) => (
-                <div key={task.task_id || task.id} className="flex items-center gap-3 p-2">
+                <div key={task.task_id} className="flex items-center gap-3 p-2">
                   <div className="flex-1 text-sm">{task.title}</div>
                   <Badge tone={task.priority === "urgent" ? "bad" : "default"}>{task.priority}</Badge>
                   <Badge tone={task.status === "completed" ? "good" : task.status === "revision" ? "bad" : "warn"}>{task.status}</Badge>
