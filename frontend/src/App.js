@@ -32,7 +32,18 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
-import ModeratorDashboard from "./pages/ModeratorDashboard";
+import {
+  ModeratorOverview,
+  ModeratorProjects,
+  ModeratorTasks,
+  ModeratorTeamWorkload,
+  ModeratorClientMessages,
+  ModeratorReviews,
+  ModeratorEscalations,
+  ModeratorCalendar,
+  ModeratorChat,
+  ModeratorProfile,
+} from "./pages/moderator/ModeratorPages";
 import ChatPage from "./pages/ChatPage";
 
 function PermanentDarkMode() {
@@ -61,6 +72,7 @@ function RootRedirect() {
   if (!user || !user.role) return <Navigate to="/login" replace />;
   const validRoles = ["admin", "editor", "client", "moderator"];
   if (!validRoles.includes(user.role)) return <Navigate to="/login" replace />;
+  if (user.role === "moderator") return <Navigate to="/moderator/overview" replace />;
   return <Navigate to={`/${user.role}`} replace />;
 }
 
@@ -70,6 +82,10 @@ function ProtectedRoute({ children, allowedRoles }) {
   if (!user || !user.role) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
+}
+
+function ModRoute({ children }) {
+  return <ProtectedRoute allowedRoles={["moderator"]}>{children}</ProtectedRoute>;
 }
 
 function App() {
@@ -96,7 +112,19 @@ function App() {
             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
-            <Route path="/moderator" element={<ProtectedRoute allowedRoles={["moderator"]}><ModeratorDashboard /></ProtectedRoute>} />
+
+            <Route path="/moderator" element={<Navigate to="/moderator/overview" replace />} />
+            <Route path="/moderator/overview" element={<ModRoute><ModeratorOverview /></ModRoute>} />
+            <Route path="/moderator/projects" element={<ModRoute><ModeratorProjects /></ModRoute>} />
+            <Route path="/moderator/tasks" element={<ModRoute><ModeratorTasks /></ModRoute>} />
+            <Route path="/moderator/team-workload" element={<ModRoute><ModeratorTeamWorkload /></ModRoute>} />
+            <Route path="/moderator/client-messages" element={<ModRoute><ModeratorClientMessages /></ModRoute>} />
+            <Route path="/moderator/reviews" element={<ModRoute><ModeratorReviews /></ModRoute>} />
+            <Route path="/moderator/escalations" element={<ModRoute><ModeratorEscalations /></ModRoute>} />
+            <Route path="/moderator/calendar" element={<ModRoute><ModeratorCalendar /></ModRoute>} />
+            <Route path="/moderator/chat" element={<ModRoute><ModeratorChat /></ModRoute>} />
+            <Route path="/moderator/profile" element={<ModRoute><ModeratorProfile /></ModRoute>} />
+
             <Route path="/editor" element={<ProtectedRoute allowedRoles={["editor"]}><EditorDashboard /></ProtectedRoute>} />
             <Route path="/editor/workflow" element={<ProtectedRoute allowedRoles={["editor"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/editor/profile" element={<ProtectedRoute allowedRoles={["editor"]}><EditorProfile /></ProtectedRoute>} />
