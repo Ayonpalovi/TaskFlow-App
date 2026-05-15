@@ -32,8 +32,8 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ClientPanel from "./pages/ClientPanel";
 import ClientCreateProject from "./pages/ClientCreateProject";
 
+import ModeratorCommandOverview from "./pages/moderator/ModeratorCommandOverview";
 import {
-  ModeratorOverview,
   ModeratorProjects,
   ModeratorTasks,
   ModeratorTeamWorkload,
@@ -114,7 +114,7 @@ function App() {
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
 
             <Route path="/moderator" element={<Navigate to="/moderator/overview" replace />} />
-            <Route path="/moderator/overview" element={<ModRoute><ModeratorOverview /></ModRoute>} />
+            <Route path="/moderator/overview" element={<ModRoute><ModeratorCommandOverview /></ModRoute>} />
             <Route path="/moderator/projects" element={<ModRoute><ModeratorProjects /></ModRoute>} />
             <Route path="/moderator/tasks" element={<ModRoute><ModeratorTasks /></ModRoute>} />
             <Route path="/moderator/team-workload" element={<ModRoute><ModeratorTeamWorkload /></ModRoute>} />
