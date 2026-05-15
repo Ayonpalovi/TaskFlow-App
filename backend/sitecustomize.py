@@ -12,6 +12,7 @@ _original_include_router = FastAPI.include_router
 _original_call = FastAPI.__call__
 _attached_account = False
 _attached_workflow = False
+_attached_moderator = False
 
 
 def _find_server_module():
@@ -50,6 +51,19 @@ def _attach_workflow_routers(app, server, existing_paths):
     print("Motionholic workflow routes attached")
 
 
+def _attach_moderator_router(app, server, existing_paths):
+    global _attached_moderator
+    if _attached_moderator or "/api/moderator/dashboard" in existing_paths:
+        _attached_moderator = True
+        return
+
+    from moderator_routes import build_moderator_router
+
+    _original_include_router(app, build_moderator_router(server))
+    _attached_moderator = True
+    print("Motionholic moderator routes attached")
+
+
 def _attach_extension_routers(app):
     server = _find_server_module()
     if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
@@ -66,6 +80,11 @@ def _attach_extension_routers(app):
         _attach_workflow_routers(app, server, existing_paths)
     except Exception as exc:
         print(f"Motionholic workflow route loader failed: {exc}")
+
+    try:
+        _attach_moderator_router(app, server, existing_paths)
+    except Exception as exc:
+        print(f"Motionholic moderator route loader failed: {exc}")
 
 
 def _patched_include_router(self, router, *args, **kwargs):
