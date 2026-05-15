@@ -363,6 +363,10 @@ export default function ModeratorCommandOverview() {
 
   const stats = useMemo(() => buildStats(tasks, editors, clients, requests, risk), [tasks, editors, clients, requests, risk]);
   const statusData = useMemo(() => buildStatusBreakdown(tasks), [tasks]);
+  const visibleStatusData = useMemo(
+  () => statusData.filter((item) => Number(item.value || 0) > 0),
+  [statusData]
+);
   const trendData = useMemo(() => buildDaily(tasks), [tasks]);
   const workload = useMemo(() => buildWorkload(editors, tasks), [editors, tasks]);
   const satisfactionRows = useMemo(() => buildSatisfaction(editors, reviews), [editors, reviews]);
