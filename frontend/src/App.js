@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import DashboardMotionProvider from "./components/DashboardMotionProvider";
 import ModeratorRoleOptionPatch from "./components/ModeratorRoleOptionPatch";
 import AdminFinanceAccessApprovalWidget from "./components/AdminFinanceAccessApprovalWidget";
+import AdminModeratorEscalationNotes from "./components/AdminModeratorEscalationNotes";
 
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -95,6 +96,7 @@ function AdminOverviewRoute() {
       <AdminDashboard />
       <div className="mx-auto max-w-[1480px] px-4 pb-8 sm:px-6 lg:ml-[228px] lg:px-7">
         <AdminFinanceAccessApprovalWidget embedded />
+        <AdminModeratorEscalationNotes />
       </div>
     </ProtectedRoute>
   );
