@@ -2,6 +2,13 @@ import { useEffect } from "react";
 
 const WORKFLOW_PATH = "/moderator/workflow";
 const CREATE_TASK_PATH = "/moderator/create";
+const REMOVED_MODERATOR_PATHS = new Set([
+  "/moderator/projects",
+  "/moderator/team-workload",
+  "/moderator/client-messages",
+  "/moderator/reviews",
+  "/moderator/profile",
+]);
 
 function ensureModeratorOption(select) {
   if (!select) return;
@@ -56,6 +63,12 @@ function createModeratorSidebarLink({ path, label, icon, datasetKey }) {
   return link;
 }
 
+function removeDeletedModeratorLinks(nav) {
+  Array.from(nav.querySelectorAll("a")).forEach((link) => {
+    if (REMOVED_MODERATOR_PATHS.has(getLinkPath(link))) link.remove();
+  });
+}
+
 function syncInjectedLink({ nav, path, label, icon, datasetKey, insertAfterPath }) {
   const allLinks = Array.from(nav.querySelectorAll("a")).filter((link) => getLinkPath(link) === path);
   const nativeLinks = allLinks.filter((link) => link.dataset[datasetKey] !== "true");
@@ -93,6 +106,8 @@ function patchModeratorSidebar() {
   if (!window.location.pathname.startsWith("/moderator")) return;
 
   document.querySelectorAll("aside nav").forEach((nav) => {
+    removeDeletedModeratorLinks(nav);
+
     syncInjectedLink({
       nav,
       path: WORKFLOW_PATH,
@@ -110,6 +125,8 @@ function patchModeratorSidebar() {
       datasetKey: "moderatorCreateTaskLink",
       insertAfterPath: "/moderator/tasks",
     });
+
+    removeDeletedModeratorLinks(nav);
   });
 }
 
