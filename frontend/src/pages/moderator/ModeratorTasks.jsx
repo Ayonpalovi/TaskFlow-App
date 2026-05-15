@@ -69,6 +69,19 @@ function riskTone(hoursLeft) {
   return null;
 }
 
+function isNotFound(error) {
+  return error?.response?.status === 404 || String(error?.response?.data?.detail || "").toLowerCase() === "not found";
+}
+
+async function withFallback(primaryAction, fallbackAction) {
+  try {
+    return await primaryAction();
+  } catch (error) {
+    if (isNotFound(error) && fallbackAction) return fallbackAction();
+    throw error;
+  }
+}
+
 function Badge({ children, tone = "default" }) {
   const tones = {
     default: "border-white/10 bg-white/5 text-zinc-300",
@@ -104,14 +117,7 @@ function TaskCard({ task, onOpen, onDragStart, riskLeft }) {
       onClick={() => onOpen(task)}
       data-testid={`moderator-task-card-${task.id}`}
       className="cursor-pointer rounded-md border border-white/10 bg-zinc-900/50 p-3 transition-all hover:bg-zinc-900"
-      style={
-        risk
-          ? {
-              borderLeftWidth: 3,
-              borderLeftColor: isOverdue ? "#EF4444" : "#F59E0B",
-            }
-          : {}
-      }
+      style={risk ? { borderLeftWidth: 3, borderLeftColor: isOverdue ? "#EF4444" : "#F59E0B" } : {}}
     >
       <div className="truncate text-sm font-medium">{task.title}</div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -178,16 +184,12 @@ export default function ModeratorTasks() {
         api.get("/stats/deadline-risk"),
         api.get("/requests"),
       ]);
-
       setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
       setEditors(Array.isArray(editorRes.data) ? editorRes.data : []);
       setClients(Array.isArray(clientRes.data) ? clientRes.data : []);
       setRequests(Array.isArray(requestRes.data) ? requestRes.data : []);
-
       const riskMap = {};
-      (Array.isArray(riskRes.data) ? riskRes.data : []).forEach((item) => {
-        riskMap[item.task_id] = item.hours_left;
-      });
+      (Array.isArray(riskRes.data) ? riskRes.data : []).forEach((item) => { riskMap[item.task_id] = item.hours_left; });
       setRisk(riskMap);
     } catch (error) {
       setErr(formatApiError(error?.response?.data?.detail) || "Failed to load tasks.");
@@ -199,6 +201,36 @@ export default function ModeratorTasks() {
   const editorMap = useMemo(() => new Map(editors.map((editor) => [editor.id, editor])), [editors]);
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const detailRequests = useMemo(() => requests.filter((request) => request.task_id === detail?.id && request.status === "pending"), [requests, detail]);
+
+  const patchTask = (taskId, payload) => withFallback(
+    () => api.patch(`/workflow/moderator/tasks/${taskId}`, payload),
+    () => api.patch(`/tasks/${taskId}`, payload)
+  );
+
+  const approveClientTask = (taskId) => withFallback(
+    () => api.post(`/workflow/moderator/tasks/${taskId}/approve-client`),
+    () => api.post(`/tasks/${taskId}/admin-approve`)
+  );
+
+  const rejectClientTask = (taskId) => withFallback(
+    () => api.post(`/workflow/moderator/tasks/${taskId}/reject-client`),
+    () => api.post(`/tasks/${taskId}/admin-reject`)
+  );
+
+  const approveEditorDraftTask = (taskId) => withFallback(
+    () => api.post(`/workflow/moderator/tasks/${taskId}/approve-editor-draft`),
+    () => api.post(`/tasks/${taskId}/admin-approve-video`)
+  );
+
+  const approveEditorRequest = (requestId) => withFallback(
+    () => api.post(`/workflow/moderator/requests/${requestId}/approve`),
+    () => api.post(`/requests/${requestId}/approve`)
+  );
+
+  const rejectEditorRequest = (requestId) => withFallback(
+    () => api.post(`/workflow/moderator/requests/${requestId}/reject`),
+    () => api.post(`/requests/${requestId}/reject`)
+  );
 
   const openDetail = async (task) => {
     try {
@@ -228,10 +260,9 @@ export default function ModeratorTasks() {
     setDragOver(null);
     const id = event.dataTransfer.getData("text/plain");
     if (!id) return;
-
     try {
       setErr("");
-      await api.patch(`/workflow/moderator/tasks/${id}`, { status });
+      await patchTask(id, { status });
       await load();
     } catch (error) {
       setErr(formatApiError(error?.response?.data?.detail) || "Failed to move task.");
@@ -252,14 +283,14 @@ export default function ModeratorTasks() {
     }
   };
 
-  const approveClientProject = () => runAction(() => api.post(`/workflow/moderator/tasks/${detail.id}/approve-client`), "Failed to approve client project.");
-  const rejectClientProject = () => runAction(() => api.post(`/workflow/moderator/tasks/${detail.id}/reject-client`), "Failed to reject client project.");
-  const approveEditorDraft = () => runAction(() => api.post(`/workflow/moderator/tasks/${detail.id}/approve-editor-draft`), "Failed to approve editor draft.");
-  const approveRequest = (requestId) => runAction(() => api.post(`/workflow/moderator/requests/${requestId}/approve`), "Failed to approve editor request.");
-  const rejectRequest = (requestId) => runAction(() => api.post(`/workflow/moderator/requests/${requestId}/reject`), "Failed to reject editor request.");
+  const approveClientProject = () => runAction(() => approveClientTask(detail.id), "Failed to approve client project.");
+  const rejectClientProject = () => runAction(() => rejectClientTask(detail.id), "Failed to reject client project.");
+  const approveEditorDraft = () => runAction(() => approveEditorDraftTask(detail.id), "Failed to approve editor draft.");
+  const approveRequest = (requestId) => runAction(() => approveEditorRequest(requestId), "Failed to approve editor request.");
+  const rejectRequest = (requestId) => runAction(() => rejectEditorRequest(requestId), "Failed to reject editor request.");
   const assignSelectedEditor = () => {
     if (!selectedEditorId || !detail?.id) return;
-    return runAction(() => api.patch(`/workflow/moderator/tasks/${detail.id}`, { assigned_editor_id: selectedEditorId, status: "active" }), "Failed to assign editor.");
+    return runAction(() => patchTask(detail.id, { assigned_editor_id: selectedEditorId, status: "active" }), "Failed to assign editor.");
   };
 
   if (detail) {
@@ -413,10 +444,7 @@ export default function ModeratorTasks() {
               return (
                 <div
                   key={column.key}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setDragOver(column.key);
-                  }}
+                  onDragOver={(event) => { event.preventDefault(); setDragOver(column.key); }}
                   onDragLeave={() => setDragOver(null)}
                   onDrop={(event) => onDrop(event, column.dropStatus)}
                   className={`rounded-md border bg-zinc-900/50 p-3 transition-all ${dragOver === column.key ? "border-white/40 bg-zinc-800/50" : "border-white/10"}`}
