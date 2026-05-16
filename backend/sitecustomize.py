@@ -1,8 +1,8 @@
-"""Attach Motionholic OS extension routes without rewriting server.py.
+"""Motionholic OS runtime patches.
 
-Render starts this backend with `uvicorn server:app`, so this file is loaded
-from the backend folder at Python startup. Keep each extension independent so a
-workflow import issue cannot block account routes.
+This file is loaded automatically by Python before `server.py` starts on Render.
+It keeps the project pipeline manual: available projects do not move to active
+unless Admin/Moderator assigns an editor or approves an editor request.
 """
 
 import asyncio
@@ -12,6 +12,8 @@ from fastapi.applications import FastAPI
 
 _original_include_router = FastAPI.include_router
 _original_call = FastAPI.__call__
+_original_on_event = FastAPI.on_event
+
 _attached_account = False
 _attached_workflow = False
 _attached_workflow_chat = False
@@ -21,6 +23,7 @@ _attached_moderator_create_task = False
 _attached_moderator_account_patch = False
 _attached_moderator_finance = False
 _attached_moderator_escalation_notify = False
+_attached_request_approval_override = False
 _patched_pipeline_scheduler = False
 _patched_auto_move_db_guards = False
 
@@ -39,6 +42,27 @@ def _clean_doc(doc):
     return out
 
 
+def _to_number(value, fallback=0):
+    try:
+        return float(value or fallback)
+    except Exception:
+        return fallback
+
+
+def _to_int(value, fallback=1):
+    try:
+        return int(value or fallback)
+    except Exception:
+        return fallback
+
+
+def _collection_name(collection):
+    try:
+        return collection.name
+    except Exception:
+        return ""
+
+
 def _is_auto_task_move_update(update):
     if not isinstance(update, dict):
         return False
@@ -53,23 +77,10 @@ def _is_auto_request_resolution(update):
     return set_data.get("status") == "auto_resolved"
 
 
-def _collection_name(collection):
-    try:
-        return collection.name
-    except Exception:
-        return ""
-
-
 def _patch_auto_move_db_guards(server):
-    """Block old background auto-move DB writes even if an old scheduler loop is alive.
-
-    Admin/Moderator drag-and-drop and approval endpoints still work because they do not
-    write the auto_assigned/auto_approved flags used by the background scheduler.
-    """
+    """Block old background scheduler writes even if a stale scheduler loop exists."""
     global _patched_auto_move_db_guards
-    if _patched_auto_move_db_guards:
-        return
-    if not hasattr(server, "db") or not hasattr(server.db, "tasks"):
+    if _patched_auto_move_db_guards or not hasattr(server, "db") or not hasattr(server.db, "tasks"):
         return
 
     collection_cls = type(server.db.tasks)
@@ -102,88 +113,42 @@ def _patch_auto_move_db_guards(server):
 
     collection_cls.update_one = guarded_update_one
     collection_cls.update_many = guarded_update_many
-
-    if hasattr(server, "create_notification"):
-        original_create_notification = server.create_notification
-
-        async def guarded_create_notification(user_id, ntype, title, body="", link=None):
-            if ntype in {"auto_assigned", "auto_approved"}:
-                print(f"Motionholic blocked automatic notification: {ntype}")
-                return {
-                    "id": "__motionholic_blocked_auto_notification__",
-                    "user_id": user_id,
-                    "type": ntype,
-                    "title": title,
-                    "body": body,
-                    "link": link,
-                    "read": True,
-                    "created_at": _now_iso(),
-                }
-            return await original_create_notification(user_id, ntype, title, body, link)
-
-        server.create_notification = guarded_create_notification
-
-    if hasattr(server, "notify_role"):
-        original_notify_role = server.notify_role
-
-        async def guarded_notify_role(role, ntype, title, body="", link=None):
-            if ntype in {"auto_assigned", "auto_approved"}:
-                print(f"Motionholic blocked automatic role notification: {ntype}")
-                return None
-            return await original_notify_role(role, ntype, title, body, link)
-
-        server.notify_role = guarded_notify_role
-
     _patched_auto_move_db_guards = True
     print("Motionholic automatic pipeline DB guard attached")
 
 
 def _patch_manual_pipeline_scheduler(server):
-    """Stop background jobs from moving tasks between pipeline boards.
-
-    Pipeline status changes must now come from explicit Admin/Moderator actions:
-    approving client projects, approving editor drafts, approving editor requests,
-    or manually dragging the card in the Admin/Moderator task board.
-    """
+    """Disable auto-assign and auto-approve scheduler logic at the source."""
     global _patched_pipeline_scheduler
     if _patched_pipeline_scheduler:
         return
-    if not hasattr(server, "scheduler_tick") or not hasattr(server, "scheduler_loop"):
-        return
 
-    async def manual_approval_only_scheduler_tick():
+    async def manual_only_scheduler_tick():
         return None
 
-    async def manual_approval_only_scheduler_loop():
+    async def manual_only_scheduler_loop():
         while True:
             try:
-                await manual_approval_only_scheduler_tick()
+                await manual_only_scheduler_tick()
             except Exception as exc:
                 logger = getattr(server, "logger", None)
                 if logger:
-                    logger.error(f"manual approval scheduler error: {exc}")
+                    logger.error(f"manual scheduler error: {exc}")
                 else:
-                    print(f"manual approval scheduler error: {exc}")
+                    print(f"manual scheduler error: {exc}")
             await asyncio.sleep(60)
 
-    server.scheduler_tick = manual_approval_only_scheduler_tick
-    server.scheduler_loop = manual_approval_only_scheduler_loop
+    server.scheduler_tick = manual_only_scheduler_tick
+    server.scheduler_loop = manual_only_scheduler_loop
     _patched_pipeline_scheduler = True
-    print("Motionholic pipeline auto-move scheduler disabled; approvals now control status movement")
+    print("Motionholic pipeline scheduler disabled: available tasks stay available until manual assignment/request approval")
 
 
-def _to_number(value, fallback=0):
-    try:
-        return float(value or fallback)
-    except Exception:
-        return fallback
-
-
-def _to_int(value, fallback=1):
-    try:
-        return int(value or fallback)
-    except Exception:
-        return fallback
+def _patch_server_runtime(server):
+    if server is None or not hasattr(server, "db"):
+        return
+    _patch_auto_move_db_guards(server)
+    _patch_manual_pipeline_scheduler(server)
 
 
 def _has_route(app, path, method=None):
@@ -193,8 +158,7 @@ def _has_route(app, path, method=None):
             continue
         if not target_method:
             return True
-        methods = getattr(route, "methods", None) or set()
-        if target_method in methods:
+        if target_method in (getattr(route, "methods", None) or set()):
             return True
     return False
 
@@ -214,8 +178,7 @@ def _move_routes_before_existing(app, new_routes, path, method):
             continue
         insert_at = next(
             (
-                idx
-                for idx, existing in enumerate(app.router.routes)
+                idx for idx, existing in enumerate(app.router.routes)
                 if id(existing) not in new_route_ids
                 and getattr(existing, "path", "") == path
                 and _route_has_method(existing, method)
@@ -225,17 +188,74 @@ def _move_routes_before_existing(app, new_routes, path, method):
         app.router.routes.insert(insert_at, route)
 
 
-def _attach_task_create_override_router(app, server, existing_paths):
-    """Let moderators create/publish projects through the same /api/tasks path as admins.
+def _include_before_existing(app, router, path, method):
+    before = {id(route) for route in getattr(app, "routes", [])}
+    _original_include_router(app, router)
+    new_routes = [route for route in getattr(app, "routes", []) if id(route) not in before]
+    _move_routes_before_existing(app, new_routes, path, method)
 
-    The original server route allows admin and client only. This override is inserted
-    before the original POST /api/tasks route and keeps admin/client behavior intact
-    while adding moderator as an ops role.
+
+def _attach_request_approval_override(app, server):
+    """Allow both Admin and Moderator to approve editor requests.
+
+    Approving a request is one of the only valid ways an Available project becomes Active.
     """
-    global _attached_task_create_override
-    if _attached_task_create_override:
+    global _attached_request_approval_override
+    if _attached_request_approval_override or not _has_route(app, "/api/requests/{req_id}/approve", "POST"):
         return
-    if not _has_route(app, "/api/tasks", "POST"):
+
+    from fastapi import APIRouter, Depends, HTTPException
+
+    router = APIRouter(prefix="/api", tags=["request-approval-override"])
+
+    @router.post("/requests/{req_id}/approve")
+    async def approve_request_by_admin_or_moderator(req_id: str, user: dict = Depends(server.get_current_user)):
+        if user.get("role") not in {"admin", "moderator"}:
+            raise HTTPException(403, "Admin or moderator only")
+
+        request = await server.db.requests.find_one({"id": req_id}, {"_id": 0})
+        if not request:
+            raise HTTPException(404, "Request not found")
+        if request.get("status") != "pending":
+            raise HTTPException(400, "Request is not pending")
+
+        task = await server.db.tasks.find_one({"id": request["task_id"]}, {"_id": 0})
+        if not task:
+            raise HTTPException(404, "Task not found")
+        if task.get("status") != "available":
+            raise HTTPException(400, "Only available tasks can be assigned from editor requests")
+
+        await server.db.tasks.update_one(
+            {"id": request["task_id"]},
+            {"$set": {
+                "assigned_editor_id": request["editor_id"],
+                "editor_id": request["editor_id"],
+                "status": "active",
+                "assigned_by": user["id"],
+                "assigned_by_role": user["role"],
+                "updated_at": _now_iso(),
+            }},
+        )
+        await server.db.requests.update_one(
+            {"id": req_id},
+            {"$set": {"status": "approved", "approved_by": user["id"], "approved_by_role": user["role"], "updated_at": _now_iso()}},
+        )
+        await server.db.requests.update_many(
+            {"task_id": request["task_id"], "id": {"$ne": req_id}, "status": "pending"},
+            {"$set": {"status": "rejected", "updated_at": _now_iso()}},
+        )
+        if hasattr(server, "create_notification"):
+            await server.create_notification(request["editor_id"], "request_approved", f"Request approved: {task.get('title', 'Project')}", link="/editor/projects")
+        return {"ok": True}
+
+    _include_before_existing(app, router, "/api/requests/{req_id}/approve", "POST")
+    _attached_request_approval_override = True
+    print("Motionholic request approval override attached")
+
+
+def _attach_task_create_override_router(app, server):
+    global _attached_task_create_override
+    if _attached_task_create_override or not _has_route(app, "/api/tasks", "POST"):
         return
 
     from fastapi import APIRouter, Depends, HTTPException
@@ -253,7 +273,6 @@ def _attach_task_create_override_router(app, server, existing_paths):
         title = str(data.get("title") or "").strip()
         project_type = str(data.get("project_type") or "").strip()
         deadline = str(data.get("deadline") or "").strip()
-
         if not title:
             raise HTTPException(400, "Title is required")
         if not project_type:
@@ -272,15 +291,10 @@ def _attach_task_create_override_router(app, server, existing_paths):
             is_draft = bool(data.get("is_draft"))
             status = "draft" if is_draft else ("active" if assigned_editor_id else "available")
 
-        if client_id:
-            client = await server.db.users.find_one({"id": client_id, "role": "client"}, {"_id": 0})
-            if not client:
-                raise HTTPException(404, "Client not found")
-
-        if assigned_editor_id:
-            editor = await server.db.users.find_one({"id": assigned_editor_id, "role": "editor"}, {"_id": 0})
-            if not editor:
-                raise HTTPException(404, "Editor not found")
+        if client_id and not await server.db.users.find_one({"id": client_id, "role": "client"}, {"_id": 0}):
+            raise HTTPException(404, "Client not found")
+        if assigned_editor_id and not await server.db.users.find_one({"id": assigned_editor_id, "role": "editor"}, {"_id": 0}):
+            raise HTTPException(404, "Editor not found")
 
         for key in ["_id", "id", "created_at", "updated_at", "created_by", "creator_role", "status", "available_at", "submitted_at", "video_url"]:
             data.pop(key, None)
@@ -311,7 +325,6 @@ def _attach_task_create_override_router(app, server, existing_paths):
             "assigned_editor_id": assigned_editor_id,
             "is_draft": is_draft,
         }
-
         await server.db.tasks.insert_one(doc.copy())
 
         if status == "pending_admin_approval":
@@ -320,135 +333,93 @@ def _attach_task_create_override_router(app, server, existing_paths):
             await server.notify_role("editor", "new_brief", f"New open brief: {project_type}", link="/editor/available")
         elif status == "active" and assigned_editor_id:
             await server.create_notification(assigned_editor_id, "task_assigned", f"Assigned project: {title}", link="/editor/projects")
-
         if client_id and role in {"admin", "moderator"} and status != "draft":
             await server.create_notification(client_id, "project_created", f"Project created: {title}", link="/client/panel")
-
         return _clean_doc(doc)
 
-    before = {id(route) for route in getattr(app, "routes", [])}
-    _original_include_router(app, router)
-    new_routes = [route for route in getattr(app, "routes", []) if id(route) not in before]
-    _move_routes_before_existing(app, new_routes, "/api/tasks", "POST")
+    _include_before_existing(app, router, "/api/tasks", "POST")
     _attached_task_create_override = True
     print("Motionholic task create override route attached")
 
 
-def _attach_moderator_account_patch(app, server, existing_paths):
-    global _attached_moderator_account_patch
-    if _attached_moderator_account_patch:
-        return
+def _attach_optional_routers(app, server):
+    global _attached_account, _attached_workflow, _attached_workflow_chat, _attached_moderator
+    global _attached_moderator_create_task, _attached_moderator_account_patch
+    global _attached_moderator_finance, _attached_moderator_escalation_notify
 
-    from moderator_account_patch import build_moderator_account_patch_router
+    existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
 
-    _original_include_router(app, build_moderator_account_patch_router(server))
-    _attached_moderator_account_patch = True
-    print("Motionholic moderator account patch routes attached")
+    try:
+        if not _attached_moderator_account_patch:
+            from moderator_account_patch import build_moderator_account_patch_router
+            _original_include_router(app, build_moderator_account_patch_router(server))
+            _attached_moderator_account_patch = True
+    except Exception as exc:
+        print(f"Motionholic moderator account patch loader failed: {exc}")
 
+    try:
+        if not _attached_account and "/api/account/users/invite" not in existing_paths:
+            from account_status import install_status_patch
+            from account_routes import build_account_router
+            install_status_patch(server)
+            _original_include_router(app, build_account_router(server))
+            _attached_account = True
+    except Exception as exc:
+        print(f"Motionholic account route loader failed: {exc}")
 
-def _attach_account_router(app, server, existing_paths):
-    global _attached_account
-    if _attached_account or "/api/account/users/invite" in existing_paths:
-        _attached_account = True
-        return
+    try:
+        if not _attached_workflow:
+            from workflow_api import build_task_compat_router, build_workflow_router
+            if "/api/workflow/state" not in existing_paths:
+                _original_include_router(app, build_workflow_router(server))
+            if "/api/tasks/{task_id}" not in existing_paths:
+                _original_include_router(app, build_task_compat_router(server))
+            _attached_workflow = True
+    except Exception as exc:
+        print(f"Motionholic workflow route loader failed: {exc}")
 
-    from account_status import install_status_patch
-    from account_routes import build_account_router
+    try:
+        if not _attached_workflow_chat and "/api/workflow/chat/conversations" not in existing_paths:
+            from fastapi import APIRouter
+            from workflow_chat_api import attach_workflow_chat_routes
+            chat_router = APIRouter(prefix="/api/workflow", tags=["workflow-chat"])
+            attach_workflow_chat_routes(chat_router, server)
+            _original_include_router(app, chat_router)
+            _attached_workflow_chat = True
+    except Exception as exc:
+        print(f"Motionholic workflow chat route loader failed: {exc}")
 
-    install_status_patch(server)
-    _original_include_router(app, build_account_router(server))
-    _attached_account = True
-    print("Motionholic account routes attached")
+    try:
+        if not _attached_moderator_create_task and not _has_route(app, "/api/workflow/moderator/tasks", "POST"):
+            from moderator_create_task_patch import build_moderator_create_task_router
+            _original_include_router(app, build_moderator_create_task_router(server))
+            _attached_moderator_create_task = True
+    except Exception as exc:
+        print(f"Motionholic moderator create task route loader failed: {exc}")
 
+    try:
+        if not _attached_moderator and "/api/moderator/dashboard" not in existing_paths:
+            from moderator_routes import build_moderator_router
+            _original_include_router(app, build_moderator_router(server))
+            _attached_moderator = True
+    except Exception as exc:
+        print(f"Motionholic moderator route loader failed: {exc}")
 
-def _attach_workflow_routers(app, server, existing_paths):
-    global _attached_workflow
-    if _attached_workflow:
-        return
+    try:
+        if not _attached_moderator_finance and "/api/moderator/finance-access" not in existing_paths:
+            from moderator_finance_access import build_moderator_finance_router
+            _original_include_router(app, build_moderator_finance_router(server))
+            _attached_moderator_finance = True
+    except Exception as exc:
+        print(f"Motionholic moderator finance route loader failed: {exc}")
 
-    from workflow_api import build_task_compat_router, build_workflow_router
-
-    if "/api/workflow/state" not in existing_paths:
-        _original_include_router(app, build_workflow_router(server))
-
-    if "/api/tasks/{task_id}" not in existing_paths:
-        _original_include_router(app, build_task_compat_router(server))
-
-    _attached_workflow = True
-    print("Motionholic workflow routes attached")
-
-
-def _attach_workflow_chat_router(app, server, existing_paths):
-    global _attached_workflow_chat
-    if _attached_workflow_chat or "/api/workflow/chat/conversations" in existing_paths:
-        _attached_workflow_chat = True
-        return
-
-    from fastapi import APIRouter
-    from workflow_chat_api import attach_workflow_chat_routes
-
-    chat_router = APIRouter(prefix="/api/workflow", tags=["workflow-chat"])
-    attach_workflow_chat_routes(chat_router, server)
-    _original_include_router(app, chat_router)
-    _attached_workflow_chat = True
-    print("Motionholic workflow chat routes attached")
-
-
-def _attach_moderator_create_task_router(app, server, existing_paths):
-    global _attached_moderator_create_task
-    if _attached_moderator_create_task:
-        return
-
-    if _has_route(app, "/api/workflow/moderator/tasks", "POST"):
-        _attached_moderator_create_task = True
-        return
-
-    from moderator_create_task_patch import build_moderator_create_task_router
-
-    _original_include_router(app, build_moderator_create_task_router(server))
-    _attached_moderator_create_task = True
-    print("Motionholic moderator create task route attached")
-
-
-def _attach_moderator_router(app, server, existing_paths):
-    global _attached_moderator
-    if _attached_moderator or "/api/moderator/dashboard" in existing_paths:
-        _attached_moderator = True
-        return
-
-    from moderator_routes import build_moderator_router
-
-    _original_include_router(app, build_moderator_router(server))
-    _attached_moderator = True
-    print("Motionholic moderator routes attached")
-
-
-def _attach_moderator_finance_router(app, server, existing_paths):
-    global _attached_moderator_finance
-    if _attached_moderator_finance or "/api/moderator/finance-access" in existing_paths:
-        _attached_moderator_finance = True
-        return
-
-    from moderator_finance_access import build_moderator_finance_router
-
-    _original_include_router(app, build_moderator_finance_router(server))
-    _attached_moderator_finance = True
-    print("Motionholic moderator finance routes attached")
-
-
-def _attach_moderator_escalation_notify_router(app, server, existing_paths):
-    global _attached_moderator_escalation_notify
-    if _attached_moderator_escalation_notify:
-        return
-
-    from moderator_escalation_notify_patch import build_moderator_escalation_notify_router
-
-    before = {id(route) for route in getattr(app, "routes", [])}
-    _original_include_router(app, build_moderator_escalation_notify_router(server))
-    new_routes = [route for route in getattr(app, "routes", []) if id(route) not in before]
-    _move_routes_before_existing(app, new_routes, "/api/moderator/escalations", "POST")
-    _attached_moderator_escalation_notify = True
-    print("Motionholic moderator escalation notification route attached")
+    try:
+        if not _attached_moderator_escalation_notify:
+            from moderator_escalation_notify_patch import build_moderator_escalation_notify_router
+            _include_before_existing(app, build_moderator_escalation_notify_router(server), "/api/moderator/escalations", "POST")
+            _attached_moderator_escalation_notify = True
+    except Exception as exc:
+        print(f"Motionholic moderator escalation notification loader failed: {exc}")
 
 
 def _attach_extension_routers(app):
@@ -456,55 +427,16 @@ def _attach_extension_routers(app):
     if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
         return
 
-    _patch_auto_move_db_guards(server)
-    _patch_manual_pipeline_scheduler(server)
-
-    existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
-
+    _patch_server_runtime(server)
     try:
-        _attach_task_create_override_router(app, server, existing_paths)
+        _attach_task_create_override_router(app, server)
     except Exception as exc:
         print(f"Motionholic task create override loader failed: {exc}")
-
     try:
-        _attach_moderator_account_patch(app, server, existing_paths)
+        _attach_request_approval_override(app, server)
     except Exception as exc:
-        print(f"Motionholic moderator account patch loader failed: {exc}")
-
-    try:
-        _attach_account_router(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic account route loader failed: {exc}")
-
-    try:
-        _attach_workflow_routers(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic workflow route loader failed: {exc}")
-
-    try:
-        _attach_workflow_chat_router(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic workflow chat route loader failed: {exc}")
-
-    try:
-        _attach_moderator_create_task_router(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic moderator create task route loader failed: {exc}")
-
-    try:
-        _attach_moderator_router(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic moderator route loader failed: {exc}")
-
-    try:
-        _attach_moderator_finance_router(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic moderator finance route loader failed: {exc}")
-
-    try:
-        _attach_moderator_escalation_notify_router(app, server, existing_paths)
-    except Exception as exc:
-        print(f"Motionholic moderator escalation notification loader failed: {exc}")
+        print(f"Motionholic request approval override loader failed: {exc}")
+    _attach_optional_routers(app, server)
 
 
 def _patched_include_router(self, router, *args, **kwargs):
@@ -514,10 +446,28 @@ def _patched_include_router(self, router, *args, **kwargs):
     return result
 
 
+def _patched_on_event(self, event_type):
+    decorator = _original_on_event(self, event_type)
+
+    def wrapper(func):
+        if event_type != "startup":
+            return decorator(func)
+
+        async def startup_with_manual_pipeline(*args, **kwargs):
+            _patch_server_runtime(_find_server_module())
+            return await func(*args, **kwargs)
+
+        startup_with_manual_pipeline.__name__ = getattr(func, "__name__", "startup_with_manual_pipeline")
+        return decorator(startup_with_manual_pipeline)
+
+    return wrapper
+
+
 async def _patched_call(self, scope, receive, send):
     _attach_extension_routers(self)
     return await _original_call(self, scope, receive, send)
 
 
 FastAPI.include_router = _patched_include_router
+FastAPI.on_event = _patched_on_event
 FastAPI.__call__ = _patched_call
