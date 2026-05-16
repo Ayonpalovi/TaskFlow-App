@@ -5,6 +5,7 @@ from the backend folder at Python startup. Keep each extension independent so a
 workflow import issue cannot block account routes.
 """
 
+import asyncio
 import sys
 from datetime import datetime, timezone
 from fastapi.applications import FastAPI
@@ -20,6 +21,7 @@ _attached_moderator_create_task = False
 _attached_moderator_account_patch = False
 _attached_moderator_finance = False
 _attached_moderator_escalation_notify = False
+_patched_pipeline_scheduler = False
 
 
 def _find_server_module():
@@ -34,6 +36,39 @@ def _clean_doc(doc):
     out = dict(doc or {})
     out.pop("_id", None)
     return out
+
+
+def _patch_manual_pipeline_scheduler(server):
+    """Stop background jobs from moving tasks between pipeline boards.
+
+    Pipeline status changes must now come from explicit Admin/Moderator actions:
+    approving client projects, approving editor drafts, or approving editor requests.
+    """
+    global _patched_pipeline_scheduler
+    if _patched_pipeline_scheduler:
+        return
+    if not hasattr(server, "scheduler_tick") or not hasattr(server, "scheduler_loop"):
+        return
+
+    async def manual_approval_only_scheduler_tick():
+        return None
+
+    async def manual_approval_only_scheduler_loop():
+        while True:
+            try:
+                await manual_approval_only_scheduler_tick()
+            except Exception as exc:
+                logger = getattr(server, "logger", None)
+                if logger:
+                    logger.error(f"manual approval scheduler error: {exc}")
+                else:
+                    print(f"manual approval scheduler error: {exc}")
+            await asyncio.sleep(60)
+
+    server.scheduler_tick = manual_approval_only_scheduler_tick
+    server.scheduler_loop = manual_approval_only_scheduler_loop
+    _patched_pipeline_scheduler = True
+    print("Motionholic pipeline auto-move scheduler disabled; approvals now control status movement")
 
 
 def _to_number(value, fallback=0):
@@ -319,6 +354,8 @@ def _attach_extension_routers(app):
     server = _find_server_module()
     if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
         return
+
+    _patch_manual_pipeline_scheduler(server)
 
     existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
 
