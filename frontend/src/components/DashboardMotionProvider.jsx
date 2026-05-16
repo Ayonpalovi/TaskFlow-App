@@ -65,6 +65,51 @@ function enhanceClientBrandProfiles() {
   });
 }
 
+function enhanceManualPipelineFlow() {
+  const taskCards = [
+    ...document.querySelectorAll('[data-testid^="task-card-"], [data-testid^="moderator-task-card-"]'),
+  ];
+
+  taskCards.forEach((card) => {
+    card.setAttribute("draggable", "false");
+    card.style.cursor = "pointer";
+    card.title = "Open this task and use an approval or assign button to move it.";
+  });
+
+  const helperTexts = [...document.querySelectorAll("p")].filter((node) =>
+    node.textContent?.includes("Drag cards across columns")
+  );
+
+  helperTexts.forEach((node) => {
+    node.textContent = node.textContent.replace(
+      "Drag cards across columns.",
+      "Tasks move only after Admin or Moderator approval. Open a task to approve, reject, or assign it."
+    );
+  });
+
+  const dropHints = [...document.querySelectorAll(".text-xs.text-zinc-600")].filter((node) =>
+    node.textContent?.trim() === "Drop here"
+  );
+
+  dropHints.forEach((node) => {
+    node.textContent = "Waiting for approval";
+  });
+}
+
+function stopManualPipelineDrag(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  const isPipelineArea = target.closest(
+    '[data-testid^="task-card-"], [data-testid^="moderator-task-card-"], [data-testid^="kanban-column-"], [data-testid^="moderator-kanban-column-"]'
+  );
+
+  if (!isPipelineArea) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 export default function DashboardMotionProvider() {
   const location = useLocation();
 
@@ -87,6 +132,7 @@ export default function DashboardMotionProvider() {
     const runEnhancers = () => {
       enhanceClientOnboarding();
       enhanceClientBrandProfiles();
+      enhanceManualPipelineFlow();
     };
 
     runEnhancers();
@@ -95,6 +141,18 @@ export default function DashboardMotionProvider() {
 
     return () => observer.disconnect();
   }, [location.pathname]);
+
+  useEffect(() => {
+    document.addEventListener("dragstart", stopManualPipelineDrag, true);
+    document.addEventListener("dragover", stopManualPipelineDrag, true);
+    document.addEventListener("drop", stopManualPipelineDrag, true);
+
+    return () => {
+      document.removeEventListener("dragstart", stopManualPipelineDrag, true);
+      document.removeEventListener("dragover", stopManualPipelineDrag, true);
+      document.removeEventListener("drop", stopManualPipelineDrag, true);
+    };
+  }, []);
 
   return null;
 }
