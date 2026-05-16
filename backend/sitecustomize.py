@@ -22,6 +22,7 @@ _attached_moderator_account_patch = False
 _attached_moderator_finance = False
 _attached_moderator_escalation_notify = False
 _patched_pipeline_scheduler = False
+_patched_auto_move_db_guards = False
 
 
 def _find_server_module():
@@ -38,11 +39,111 @@ def _clean_doc(doc):
     return out
 
 
+def _is_auto_task_move_update(update):
+    if not isinstance(update, dict):
+        return False
+    set_data = update.get("$set") if isinstance(update.get("$set"), dict) else {}
+    return bool(set_data.get("auto_assigned") or set_data.get("auto_approved"))
+
+
+def _is_auto_request_resolution(update):
+    if not isinstance(update, dict):
+        return False
+    set_data = update.get("$set") if isinstance(update.get("$set"), dict) else {}
+    return set_data.get("status") == "auto_resolved"
+
+
+def _collection_name(collection):
+    try:
+        return collection.name
+    except Exception:
+        return ""
+
+
+def _patch_auto_move_db_guards(server):
+    """Block old background auto-move DB writes even if an old scheduler loop is alive.
+
+    Admin/Moderator drag-and-drop and approval endpoints still work because they do not
+    write the auto_assigned/auto_approved flags used by the background scheduler.
+    """
+    global _patched_auto_move_db_guards
+    if _patched_auto_move_db_guards:
+        return
+    if not hasattr(server, "db") or not hasattr(server.db, "tasks"):
+        return
+
+    collection_cls = type(server.db.tasks)
+    original_update_one = collection_cls.update_one
+    original_update_many = collection_cls.update_many
+
+    async def guarded_update_one(self, filter, update, *args, **kwargs):
+        if _collection_name(self) == "tasks" and _is_auto_task_move_update(update):
+            print("Motionholic blocked automatic task board movement")
+            return await original_update_one(
+                self,
+                {"id": "__motionholic_blocked_auto_task_move__"},
+                {"$set": {"blocked_at": _now_iso()}},
+                *args,
+                **kwargs,
+            )
+        return await original_update_one(self, filter, update, *args, **kwargs)
+
+    async def guarded_update_many(self, filter, update, *args, **kwargs):
+        if _collection_name(self) == "requests" and _is_auto_request_resolution(update):
+            print("Motionholic blocked automatic request resolution")
+            return await original_update_many(
+                self,
+                {"id": "__motionholic_blocked_auto_request_resolution__"},
+                {"$set": {"blocked_at": _now_iso()}},
+                *args,
+                **kwargs,
+            )
+        return await original_update_many(self, filter, update, *args, **kwargs)
+
+    collection_cls.update_one = guarded_update_one
+    collection_cls.update_many = guarded_update_many
+
+    if hasattr(server, "create_notification"):
+        original_create_notification = server.create_notification
+
+        async def guarded_create_notification(user_id, ntype, title, body="", link=None):
+            if ntype in {"auto_assigned", "auto_approved"}:
+                print(f"Motionholic blocked automatic notification: {ntype}")
+                return {
+                    "id": "__motionholic_blocked_auto_notification__",
+                    "user_id": user_id,
+                    "type": ntype,
+                    "title": title,
+                    "body": body,
+                    "link": link,
+                    "read": True,
+                    "created_at": _now_iso(),
+                }
+            return await original_create_notification(user_id, ntype, title, body, link)
+
+        server.create_notification = guarded_create_notification
+
+    if hasattr(server, "notify_role"):
+        original_notify_role = server.notify_role
+
+        async def guarded_notify_role(role, ntype, title, body="", link=None):
+            if ntype in {"auto_assigned", "auto_approved"}:
+                print(f"Motionholic blocked automatic role notification: {ntype}")
+                return None
+            return await original_notify_role(role, ntype, title, body, link)
+
+        server.notify_role = guarded_notify_role
+
+    _patched_auto_move_db_guards = True
+    print("Motionholic automatic pipeline DB guard attached")
+
+
 def _patch_manual_pipeline_scheduler(server):
     """Stop background jobs from moving tasks between pipeline boards.
 
     Pipeline status changes must now come from explicit Admin/Moderator actions:
-    approving client projects, approving editor drafts, or approving editor requests.
+    approving client projects, approving editor drafts, approving editor requests,
+    or manually dragging the card in the Admin/Moderator task board.
     """
     global _patched_pipeline_scheduler
     if _patched_pipeline_scheduler:
@@ -355,6 +456,7 @@ def _attach_extension_routers(app):
     if server is None or not hasattr(server, "db") or not hasattr(server, "get_current_user"):
         return
 
+    _patch_auto_move_db_guards(server)
     _patch_manual_pipeline_scheduler(server)
 
     existing_paths = {getattr(route, "path", "") for route in getattr(app, "routes", [])}
