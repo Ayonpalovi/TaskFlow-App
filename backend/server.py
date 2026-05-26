@@ -1215,6 +1215,96 @@ async def calendar(admin: dict = Depends(require_role("admin"))):
             })
     return items
 
+# ── Calendar Events ────────────────────────────────────────────────────────
+class CalendarEventIn(BaseModel):
+    title: str
+    date: str
+    start_time: str = "09:00"
+    end_time: str = "10:00"
+    color: str = "blue"
+    note: str = ""
+    all_day: bool = False
+
+class CalendarEventUpdate(BaseModel):
+    title: Optional[str] = None
+    date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    color: Optional[str] = None
+    note: Optional[str] = None
+    all_day: Optional[bool] = None
+
+@api.get("/calendar/events")
+async def get_calendar_events(admin: dict = Depends(require_role("admin"))):
+    events = await db.calendar_events.find({}, {"_id": 0}).sort("date", 1).to_list(5000)
+    return events
+
+@api.post("/calendar/events")
+async def create_calendar_event(data: CalendarEventIn, admin: dict = Depends(require_role("admin"))):
+    event = {"id": str(uuid.uuid4()), **data.dict(), "created_by": admin["id"], "created_at": now_iso(), "updated_at": now_iso()}
+    await db.calendar_events.insert_one(event.copy())
+    event.pop("_id", None)
+    return event
+
+@api.put("/calendar/events/{event_id}")
+async def update_calendar_event(event_id: str, data: CalendarEventUpdate, admin: dict = Depends(require_role("admin"))):
+    update = {k: v for k, v in data.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(400, "No fields to update")
+    update["updated_at"] = now_iso()
+    result = await db.calendar_events.update_one({"id": event_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(404, "Event not found")
+    return {"ok": True}
+
+@api.delete("/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: str, admin: dict = Depends(require_role("admin"))):
+    result = await db.calendar_events.delete_one({"id": event_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Event not found")
+    return {"ok": True}
+
+# ── Calendar Notes ─────────────────────────────────────────────────────────
+class CalendarNoteIn(BaseModel):
+    title: str
+    content: str = ""
+    color: str = "yellow"
+
+class CalendarNoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    color: Optional[str] = None
+
+@api.get("/calendar/notes")
+async def get_calendar_notes(admin: dict = Depends(require_role("admin"))):
+    notes = await db.calendar_notes.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return notes
+
+@api.post("/calendar/notes")
+async def create_calendar_note(data: CalendarNoteIn, admin: dict = Depends(require_role("admin"))):
+    note = {"id": str(uuid.uuid4()), **data.dict(), "created_by": admin["id"], "created_at": now_iso(), "updated_at": now_iso()}
+    await db.calendar_notes.insert_one(note.copy())
+    note.pop("_id", None)
+    return note
+
+@api.put("/calendar/notes/{note_id}")
+async def update_calendar_note(note_id: str, data: CalendarNoteUpdate, admin: dict = Depends(require_role("admin"))):
+    update = {k: v for k, v in data.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(400, "No fields to update")
+    update["updated_at"] = now_iso()
+    result = await db.calendar_notes.update_one({"id": note_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(404, "Note not found")
+    return {"ok": True}
+
+@api.delete("/calendar/notes/{note_id}")
+async def delete_calendar_note(note_id: str, admin: dict = Depends(require_role("admin"))):
+    result = await db.calendar_notes.delete_one({"id": note_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Note not found")
+    return {"ok": True}
+
 # --- Root ---
 @api.get("/")
 async def root():
