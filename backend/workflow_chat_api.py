@@ -40,21 +40,10 @@ def sender_name(user: dict) -> str:
     return user.get("anime_name") if user.get("role") == "editor" else user.get("real_name") or user.get("display_name") or user.get("email") or "User"
 
 
-def normalize_moderator_pair(
-    first_id: str,
-    second_id: str,
-    first_role: Optional[str] = None,
-    second_role: Optional[str] = None,
-) -> str:
-    if first_role == "moderator" and second_role == "moderator":
-        participant_a, participant_b = sorted([first_id, second_id])
-        return f"moddm:{participant_a}:{participant_b}"
-    if first_role == "moderator":
-        return f"moddm:{first_id}:{second_id}"
-    if second_role == "moderator":
-        return f"moddm:{second_id}:{first_id}"
-    participant_a, participant_b = sorted([first_id, second_id])
-    return f"moddm:{participant_a}:{participant_b}"
+def canonical_dm(id_a: str, id_b: str) -> str:
+    """Always returns the same channel string for any two user IDs."""
+    low, high = sorted([id_a, id_b])
+    return f"dm:{low}:{high}"
 
 
 async def normalize_chat_channel(server, user: dict, channel: str) -> str:
@@ -64,29 +53,26 @@ async def normalize_chat_channel(server, user: dict, channel: str) -> str:
     user_role = user.get("role")
     user_id = user.get("id")
 
+    # ── Group chat (editors only) ────────────────────────────────────────────
     if channel == "group":
         if user_role == "editor":
             return "group"
         raise HTTPException(403, "Only editors can use the editor group chat")
 
-    if channel.startswith("moddm:"):
-        parts = channel.split(":")
-        if len(parts) != 3:
-            raise HTTPException(400, "Invalid moderator DM channel")
-        first_id, second_id = parts[1], parts[2]
-        first = await get_user(server, first_id)
-        second = await get_user(server, second_id)
-        participant_roles = {first.get("role"), second.get("role")}
-        if "moderator" not in participant_roles:
-            raise HTTPException(400, "Invalid moderator channel")
-        if not participant_roles.issubset(ALL_CHAT_ROLES):
-            raise HTTPException(400, "Invalid chat participant")
-        if user_id not in {first_id, second_id}:
-            raise HTTPException(403, "You do not have access to this moderator conversation")
-        return normalize_moderator_pair(first_id, second_id, first.get("role"), second.get("role"))
-
+    # ── Direct messages ──────────────────────────────────────────────────────
     if channel.startswith("dm:"):
-        target_id = channel.split("dm:", 1)[1]
+        rest = channel[3:]  # everything after "dm:"
+
+        if ":" in rest:
+            # Canonical format already: dm:{id1}:{id2}
+            raw_id1, raw_id2 = rest.split(":", 1)
+            if user_id not in {raw_id1, raw_id2}:
+                raise HTTPException(403, "You do not have access to this conversation")
+            target_id = raw_id2 if raw_id1 == user_id else raw_id1
+        else:
+            # Legacy/frontend format: dm:{target_id}
+            target_id = rest
+
         if not target_id:
             raise HTTPException(400, "Invalid DM channel")
         if target_id == user_id:
@@ -95,33 +81,26 @@ async def normalize_chat_channel(server, user: dict, channel: str) -> str:
         target = await get_user(server, target_id)
         target_role = target.get("role")
 
+        if target_role not in ALL_CHAT_ROLES:
+            raise HTTPException(403, "Invalid chat participant")
+
+        # Role-based permission check
         if user_role == "admin":
-            if target_role not in ALL_CHAT_ROLES:
-                raise HTTPException(403, "Admin can only DM admins, moderators, editors, or clients")
-            if target_role == "moderator":
-                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
-            return f"dm:{target_id}"
+            pass  # admin can DM anyone
+        elif user_role == "moderator":
+            pass  # moderator can DM anyone
+        elif user_role == "editor":
+            if target_role not in {"admin", "moderator"}:
+                raise HTTPException(403, "Editors can only DM admins or moderators")
+        elif user_role == "client":
+            if target_role not in {"admin", "moderator"}:
+                raise HTTPException(403, "Clients can only DM admins or moderators")
+        else:
+            raise HTTPException(403, "Forbidden")
 
-        if user_role == "moderator":
-            if target_role not in ALL_CHAT_ROLES:
-                raise HTTPException(403, "Moderator can only DM admins, moderators, editors, or clients")
-            return normalize_moderator_pair(user_id, target_id, user_role, target_role)
+        return canonical_dm(user_id, target_id)
 
-        if user_role == "editor":
-            if target_role == "moderator":
-                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
-            if target_role == "admin":
-                return f"dm:{user_id}"
-            raise HTTPException(403, "Editors can only DM admins or moderators")
-
-        if user_role == "client":
-            if target_role == "moderator":
-                return normalize_moderator_pair(target_id, user_id, target_role, user_role)
-            if target_role == "admin":
-                return f"dm:{user_id}"
-            raise HTTPException(403, "Clients can only DM admins or moderators")
-
-    raise HTTPException(403, "You do not have access to this conversation")
+    raise HTTPException(400, "Invalid channel")
 
 
 def attach_workflow_chat_routes(router, server):
@@ -193,7 +172,22 @@ def attach_workflow_chat_routes(router, server):
         msg = await server.db.messages.find_one({"id": msg_id}, {"_id": 0})
         if not msg:
             raise HTTPException(404, "Not found")
-        await normalize_chat_channel(server, user, msg.get("channel"))
+        stored_channel = msg.get("channel", "")
+        # Verify user has access to the channel where this message lives
+        if stored_channel == "group":
+            if user.get("role") != "editor":
+                raise HTTPException(403, "Only editors can react in group chat")
+        elif stored_channel.startswith("dm:"):
+            rest = stored_channel[3:]
+            if ":" in rest:
+                id1, id2 = rest.split(":", 1)
+                if user.get("id") not in {id1, id2}:
+                    raise HTTPException(403, "You do not have access to this conversation")
+            else:
+                # Legacy single-ID format — re-validate through normalize
+                await normalize_chat_channel(server, user, stored_channel)
+        else:
+            raise HTTPException(403, "Invalid message channel")
         emoji = payload.get("emoji")
         if not emoji:
             raise HTTPException(400, "Missing emoji")
