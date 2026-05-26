@@ -6,6 +6,8 @@ import server
 import account_routes
 from account_routes import build_account_router
 from account_status import install_status_patch
+from fastapi import APIRouter
+from workflow_chat_api import attach_workflow_chat_routes
 from starlette.responses import JSONResponse
 
 
@@ -44,6 +46,15 @@ if "/api/account/users/invite" not in existing_paths:
     print("Motionholic account routes attached by render_start.py")
 else:
     print("Motionholic account routes already attached")
+
+existing_paths = {getattr(route, "path", "") for route in getattr(server.app, "routes", [])}
+if "/api/workflow/chat/conversations" not in existing_paths:
+    chat_router = APIRouter(prefix="/api/workflow", tags=["workflow-chat"])
+    attach_workflow_chat_routes(chat_router, server)
+    server.app.include_router(chat_router)
+    print("Motionholic chat routes attached by render_start.py")
+else:
+    print("Motionholic chat routes already attached")
 
 
 @server.app.middleware("http")
