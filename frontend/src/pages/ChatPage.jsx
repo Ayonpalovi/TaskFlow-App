@@ -33,6 +33,17 @@ function channelFor(user, conversation) {
   return `dm:${conversation.id}`;
 }
 
+function canonicalDm(id1, id2) {
+  const [a, b] = [id1, id2].sort();
+  return `dm:${a}:${b}`;
+}
+
+function unreadForConversation(unread, user, conversation) {
+  if (!conversation || !user) return 0;
+  const ch = conversation.id === "group" ? "group" : canonicalDm(user.id, conversation.id);
+  return unread[ch] || 0;
+}
+
 function roleTone(role) {
   if (role === "admin") return "bad";
   if (role === "moderator") return "blue";
@@ -102,7 +113,7 @@ function MessageBubble({ msg, mine, onReact }) {
   );
 }
 
-function ConversationButton({ conversation, active, onClick }) {
+function ConversationButton({ conversation, active, onClick, unreadCount = 0 }) {
   return (
     <button
       onClick={onClick}
@@ -123,6 +134,11 @@ function ConversationButton({ conversation, active, onClick }) {
         <div className="truncate text-sm font-medium">{conversation.display_name || conversation.real_name || conversation.email}</div>
         <Badge tone={roleTone(conversation.role)}>{conversation.role}</Badge>
       </div>
+      {unreadCount > 0 && !active && (
+        <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-mono">
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
+      )}
     </button>
   );
 }
@@ -136,8 +152,10 @@ function ChatWorkspace({ mode }) {
   const [recording, setRecording] = useState(false);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [unread, setUnread] = useState({});
   const endRef = useRef(null);
   const pollRef = useRef(null);
+  const unreadPollRef = useRef(null);
   const recRef = useRef(null);
   const chunksRef = useRef([]);
 
@@ -162,17 +180,50 @@ function ChatWorkspace({ mode }) {
     setMessages(Array.isArray(data) ? data : []);
   };
 
+  const fetchUnread = async () => {
+    try {
+      const { data } = await api.get("/workflow/chat/unread");
+      setUnread(data && typeof data === "object" ? data : {});
+    } catch {
+      // silently ignore
+    }
+  };
+
+  const markRead = (channel) => {
+    if (!channel) return;
+    api.post("/workflow/chat/read", { channel }).catch(() => {});
+  };
+
   useEffect(() => {
     if (!user) return;
     fetchConversations().catch(() => setConversations([]));
+    fetchUnread();
+    unreadPollRef.current = setInterval(fetchUnread, 5000);
+    return () => {
+      if (unreadPollRef.current) clearInterval(unreadPollRef.current);
+      unreadPollRef.current = null;
+    };
   }, [user?.id]);
+
+  // When active conversation changes: mark it read and clear its badge
+  useEffect(() => {
+    if (!activeChannel || !user) return;
+    markRead(activeChannel);
+    const ch = selected?.id === "group" ? "group" : canonicalDm(user.id, selected?.id || "");
+    setUnread((prev) => {
+      if (!prev[ch]) return prev;
+      const next = { ...prev };
+      delete next[ch];
+      return next;
+    });
+  }, [activeChannel]);
 
   useEffect(() => {
     if (!activeChannel) return;
     setLoading(true);
     fetchMessages(activeChannel).finally(() => setLoading(false));
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => fetchMessages(activeChannel).catch(() => {}), 2500);
+    pollRef.current = setInterval(() => fetchMessages(activeChannel).then(() => markRead(activeChannel)).catch(() => {}), 2500);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
@@ -257,6 +308,7 @@ function ChatWorkspace({ mode }) {
               conversation={conversation}
               active={selected?.id === conversation.id}
               onClick={() => setSelected(conversation)}
+              unreadCount={unreadForConversation(unread, user, conversation)}
             />
           ))}
           {conversations.length === 0 && <div className="p-4 text-sm text-zinc-500">No conversations yet.</div>}

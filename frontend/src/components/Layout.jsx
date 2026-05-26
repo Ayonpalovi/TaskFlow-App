@@ -117,7 +117,9 @@ function showBrowserNotification(notification) {
   }
 }
 
-function NavItems({ nav, userRole, onNavigate }) {
+const CHAT_PATHS = new Set(["/admin/chat", "/editor/chat", "/client/chat", "/moderator/chat"]);
+
+function NavItems({ nav, userRole, onNavigate, chatUnread = 0 }) {
   return (
     <nav className="px-3 space-y-1">
       {nav.map((item) => (
@@ -135,7 +137,12 @@ function NavItems({ nav, userRole, onNavigate }) {
           }
         >
           <span className="w-4 text-center text-zinc-400">{item.icon}</span>
-          <span>{item.label}</span>
+          <span className="flex-1">{item.label}</span>
+          {CHAT_PATHS.has(item.path) && chatUnread > 0 && (
+            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-mono shrink-0">
+              {chatUnread > 9 ? "9+" : chatUnread}
+            </span>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -307,6 +314,7 @@ export default function Layout({ children, allowed = [] }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatUnreadTotal, setChatUnreadTotal] = useState(0);
   const [permission, setPermission] = useState(getNotificationPermission);
   const [pushEnabled, setPushEnabled] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -359,6 +367,23 @@ export default function Layout({ children, allowed = [] }) {
     setPushEnabled(false);
   };
 
+  const loadChatUnread = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await api.get("/workflow/chat/unread");
+      const counts = res.data && typeof res.data === "object" ? res.data : {};
+      setChatUnreadTotal(Object.values(counts).reduce((sum, n) => sum + (n || 0), 0));
+    } catch {
+      setChatUnreadTotal(0);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadChatUnread();
+    const timer = setInterval(loadChatUnread, 15000);
+    return () => clearInterval(timer);
+  }, [loadChatUnread]);
+
   useEffect(() => {
     loadUnreadCount();
     const timer = setInterval(loadUnreadCount, 30000);
@@ -388,7 +413,7 @@ export default function Layout({ children, allowed = [] }) {
           </Link>
         </div>
         <div className="px-5 pt-6 pb-3"><div className="text-[10px] text-zinc-600 font-mono tracking-[0.25em] uppercase">{roleLabel(user.role)}</div></div>
-        <div className="flex-1 overflow-y-auto"><NavItems nav={nav} userRole={user.role} /></div>
+        <div className="flex-1 overflow-y-auto"><NavItems nav={nav} userRole={user.role} chatUnread={chatUnreadTotal} /></div>
         <UserFooter user={user} unreadCount={unreadCount} onNotifications={() => setNotificationsOpen(true)} onLogout={handleLogout} />
       </aside>
 
@@ -406,7 +431,7 @@ export default function Layout({ children, allowed = [] }) {
               <div className="flex items-center gap-2"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /><div><div className="text-sm font-semibold">Motionholic OS</div><div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em]">{roleLabel(user.role)}</div></div></div>
               <button type="button" onClick={() => setMobileMenuOpen(false)} className="w-8 h-8 rounded-md border border-white/10 text-zinc-400">×</button>
             </div>
-            <div className="flex-1 overflow-y-auto py-4"><NavItems nav={nav} userRole={user.role} onNavigate={() => setMobileMenuOpen(false)} /></div>
+            <div className="flex-1 overflow-y-auto py-4"><NavItems nav={nav} userRole={user.role} onNavigate={() => setMobileMenuOpen(false)} chatUnread={chatUnreadTotal} /></div>
             <UserFooter user={user} unreadCount={unreadCount} onNotifications={() => { setMobileMenuOpen(false); setNotificationsOpen(true); }} onLogout={handleLogout} />
           </div>
         </div>

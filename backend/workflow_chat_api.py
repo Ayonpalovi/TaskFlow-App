@@ -104,6 +104,58 @@ async def normalize_chat_channel(server, user: dict, channel: str) -> str:
 
 
 def attach_workflow_chat_routes(router, server):
+    @router.get("/chat/unread")
+    async def workflow_chat_unread(user: dict = Depends(server.get_current_user)):
+        user_id = user.get("id")
+        user_role = user.get("role")
+
+        # Read states for this user: {channel -> last_read_at}
+        read_states = await server.db.chat_read_state.find(
+            {"user_id": user_id}, {"_id": 0, "channel": 1, "last_read_at": 1}
+        ).to_list(1000)
+        read_map = {rs["channel"]: rs["last_read_at"] for rs in read_states}
+
+        # Channels this user participates in (DMs contain their ID after "dm:")
+        dm_pattern = f"^dm:{user_id}:|:{user_id}$"
+        channel_filter: dict = {"channel": {"$regex": dm_pattern}}
+        if user_role == "editor":
+            channel_filter = {"$or": [{"channel": {"$regex": dm_pattern}}, {"channel": "group"}]}
+
+        # All messages from others in those channels
+        msgs = await server.db.messages.find(
+            {**channel_filter, "sender_id": {"$ne": user_id}},
+            {"_id": 0, "channel": 1, "created_at": 1},
+        ).to_list(10000)
+
+        # Group by channel, count those after last_read_at
+        from collections import defaultdict
+        by_channel: dict = defaultdict(list)
+        for m in msgs:
+            by_channel[m["channel"]].append(m["created_at"])
+
+        result = {}
+        for ch, timestamps in by_channel.items():
+            last_read = read_map.get(ch)
+            count = len(timestamps) if last_read is None else sum(1 for t in timestamps if t > last_read)
+            if count > 0:
+                result[ch] = count
+        return result
+
+    @router.post("/chat/read")
+    async def workflow_chat_mark_read(payload: dict, user: dict = Depends(server.get_current_user)):
+        channel = payload.get("channel")
+        if not channel:
+            raise HTTPException(400, "Missing channel")
+        normalized = await normalize_chat_channel(server, user, channel)
+        now = server.now_iso() if hasattr(server, "now_iso") else __import__("datetime").datetime.utcnow().isoformat()
+        await server.db.chat_read_state.update_one(
+            {"user_id": user["id"], "channel": normalized},
+            {"$set": {"user_id": user["id"], "channel": normalized, "last_read_at": now}},
+            upsert=True,
+        )
+        return {"ok": True}
+
+
     @router.get("/chat/conversations")
     async def workflow_chat_conversations(user: dict = Depends(server.get_current_user)):
         role = user.get("role")
