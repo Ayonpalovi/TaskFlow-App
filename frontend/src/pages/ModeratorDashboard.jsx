@@ -1,21 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api, formatApiError } from "../lib/api";
+import ModeratorLayout from "../components/ModeratorLayout";
 
 const BLUE = "#0051FF";
-
-const navItems = [
-  ["Overview", "#overview", "⌂"],
-  ["Projects", "#projects", "▣"],
-  ["Tasks", "#reviews", "▦"],
-  ["Team Workload", "#workload", "♧"],
-  ["Client Messages", "#messages", "✉"],
-  ["Reviews", "#reviews", "☑"],
-  ["Escalations", "#escalations", "⚠"],
-  ["Calendar", "#calendar", "□"],
-  ["Chat", "#messages", "♧"],
-  ["Profile", "#profile", "◎"],
-];
 
 const canList = [
   "View active projects",
@@ -105,7 +93,7 @@ function firstLetter(value) {
 }
 
 export default function ModeratorDashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
   const [profile, setProfile] = useState(null);
   const [notice, setNotice] = useState("");
@@ -185,32 +173,8 @@ export default function ModeratorDashboard() {
     }
   };
 
-  const signOut = async () => { if (logout) await logout(); };
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-white lg:flex">
-      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-[228px] shrink-0 flex-col border-r border-white/10 bg-zinc-950">
-        <div className="h-[86px] px-5 flex items-center border-b border-white/10">
-          <a href="#overview" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-md bg-black grid place-items-center overflow-hidden"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /></div>
-            <div><div className="text-sm font-semibold leading-tight">Motionholic OS</div><div className="text-[10px] text-zinc-500 font-mono tracking-[0.25em] uppercase">Creative Agency OS</div></div>
-          </a>
-        </div>
-        <div className="px-5 pt-6 pb-3"><div className="text-[10px] text-zinc-600 font-mono tracking-[0.25em] uppercase">Moderator</div></div>
-        <nav className="flex-1 overflow-y-auto px-3 space-y-1">
-          {navItems.map(([label, href, icon]) => <a key={label} href={href} className="flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm text-zinc-400 transition-all hover:bg-white/5 hover:text-white"><span className="w-4 text-center text-zinc-400">{icon}</span><span>{label}</span></a>)}
-        </nav>
-        <div className="border-t border-white/10 p-4">
-          <button type="button" onClick={() => setProfileOpen(true)} className="flex w-full items-center gap-3 text-left">
-            <div className="relative"><div className="grid h-9 w-9 place-items-center rounded-full bg-zinc-800 text-sm font-medium">{firstLetter(safeProfile.real_name)}</div><span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 bg-emerald-400" /></div>
-            <div className="min-w-0"><div className="truncate text-sm font-medium">{safeProfile.real_name}</div><div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Moderator</div></div>
-          </button>
-          <button onClick={signOut} className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white"><span>↳</span><span>Sign out</span></button>
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1 lg:ml-[228px]">
-        <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6 lg:px-7 lg:py-7">
+    <ModeratorLayout>
           <div id="overview" className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(0,81,255,.22),transparent_35%),rgba(24,24,27,.42)] p-5 shadow-2xl shadow-black/20 md:flex-row md:items-center md:justify-between">
             <div><div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-zinc-500">Operations</div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Moderator Dashboard</h1><p className="mt-2 text-sm text-zinc-400">Manage daily operations with limited access.</p></div>
             <div className="flex flex-wrap gap-2"><Badge tone="blue">Limited Operations Access</Badge><button onClick={() => setProfileOpen(true)} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 hover:bg-white/10">Profile</button><button onClick={() => setRulesOpen(true)} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 hover:bg-white/10">Access rules</button></div>
@@ -236,11 +200,10 @@ export default function ModeratorDashboard() {
             </div>
           </div>
         </div>
-      </main>
 
       {selectedProject && <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setSelectedProject(null)}><div className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="mb-5"><div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Project operations</div><h3 className="mt-2 text-xl font-semibold">{selectedProject.project_name || "Untitled project"}</h3><p className="mt-1 text-sm text-zinc-500">Update status, deadline, assignment or internal note.</p></div><div className="space-y-3"><select value={updateForm.status} onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value })} className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white"><option value="active">Active</option><option value="submitted">Submitted</option><option value="client_review">Client review</option><option value="revision">Revision</option><option value="completed">Completed</option></select><select value={updateForm.assigned_editor_id} onChange={(e) => setUpdateForm({ ...updateForm, assigned_editor_id: e.target.value })} className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white"><option value="">Unassigned</option>{editors.map((editor) => <option key={editor.id} value={editor.id}>{editor.name || editor.anime_name || editor.email}</option>)}</select><input type="date" value={updateForm.deadline} onChange={(e) => setUpdateForm({ ...updateForm, deadline: e.target.value })} className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white" /><textarea value={updateForm.internal_note} onChange={(e) => setUpdateForm({ ...updateForm, internal_note: e.target.value })} rows={3} placeholder="Internal note" className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600" /><div className="flex gap-2 pt-2"><button onClick={() => setSelectedProject(null)} className="flex-1 rounded-xl border border-white/10 py-2 text-sm hover:bg-white/5">Cancel</button><button onClick={saveProject} className="flex-1 rounded-xl py-2 text-sm font-medium text-white" style={{ background: BLUE }}>Save update</button></div></div></div></div>}
       {profileOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setProfileOpen(false)}><div className="w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="mb-5 flex items-start justify-between gap-4"><div><div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Moderator profile</div><h3 className="mt-2 text-xl font-semibold">{safeProfile.real_name}</h3><p className="mt-1 text-sm text-zinc-500">{safeProfile.email}</p></div><button onClick={() => setProfileOpen(false)} className="rounded-lg border border-white/10 px-3 py-1 text-sm text-zinc-400 hover:bg-white/5">Close</button></div><div className="grid gap-3 sm:grid-cols-2 text-sm"><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Avatar</span><div>{safeProfile.avatar_url ? "Uploaded" : "Default"}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Role</span><div>Moderator</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Status</span><div>{safeProfile.status}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Online / Offline</span><div>{safeProfile.online ? "Online" : "Offline"}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Assigned departments</span><div>{(safeProfile.assigned_departments || []).join(", ") || "—"}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Assigned projects</span><div>{safeProfile.assigned_projects}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Permission level</span><div>{safeProfile.permission_level}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Last active</span><div>{formatDate(safeProfile.last_active_time)}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-3"><span className="text-zinc-500">Date invited</span><div>{formatDate(safeProfile.date_invited)}</div></div></div></div></div>}
       {rulesOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setRulesOpen(false)}><div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="mb-5 flex items-start justify-between gap-4"><div><div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Access rules</div><h3 className="mt-2 text-xl font-semibold">Limited operations access</h3></div><button onClick={() => setRulesOpen(false)} className="rounded-lg border border-white/10 px-3 py-1 text-sm text-zinc-400 hover:bg-white/5">Close</button></div><div className="grid gap-4 md:grid-cols-2"><div><div className="mb-2 text-sm font-medium text-emerald-300">Can</div><div className="space-y-1.5">{canList.map((item) => <div key={item} className="rounded-lg border border-emerald-500/15 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">✓ {item}</div>)}</div></div><div><div className="mb-2 text-sm font-medium text-red-300">Cannot</div><div className="space-y-1.5">{cannotList.map((item) => <div key={item} className="rounded-lg border border-red-500/15 bg-red-500/10 px-3 py-2 text-xs text-red-100">✕ {item}</div>)}</div></div></div></div></div>}
-    </div>
+    </ModeratorLayout>
   );
 }

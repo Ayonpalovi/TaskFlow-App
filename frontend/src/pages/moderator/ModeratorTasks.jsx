@@ -1,20 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api, formatApiError } from "../../lib/api";
-
-const navItems = [
-  ["Overview", "/moderator/overview", "⌂"],
-  ["Projects", "/moderator/projects", "▣"],
-  ["Tasks", "/moderator/tasks", "▦"],
-  ["Team Workload", "/moderator/team-workload", "♧"],
-  ["Client Messages", "/moderator/client-messages", "✉"],
-  ["Reviews", "/moderator/reviews", "☑"],
-  ["Escalations", "/moderator/escalations", "⚠"],
-  ["Calendar", "/moderator/calendar", "□"],
-  ["Chat", "/moderator/chat", "♧"],
-  ["Profile", "/moderator/profile", "◎"],
-];
+import ModeratorLayout from "../../components/ModeratorLayout";
 
 const columns = [
   { key: "available", label: "Available", statuses: ["available"], dropStatus: "available" },
@@ -134,36 +121,8 @@ function TaskCard({ task, onOpen, onDragStart, riskLeft }) {
   );
 }
 
-function ModeratorSidebar({ user, onSignOut }) {
-  return (
-    <aside className="fixed left-0 top-0 hidden h-screen w-[228px] shrink-0 flex-col border-r border-white/10 bg-zinc-950 lg:flex">
-      <div className="flex h-[86px] items-center border-b border-white/10 px-5">
-        <NavLink to="/moderator/overview" className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-md bg-black"><img src="/motionholic-logo.png" alt="Motionholic OS" className="h-8 w-8 object-contain" /></div>
-          <div><div className="text-sm font-semibold leading-tight">Motionholic OS</div><div className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Creative Agency OS</div></div>
-        </NavLink>
-      </div>
-      <div className="px-5 pb-3 pt-6"><div className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-600">Moderator</div></div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
-        {navItems.map(([label, to, icon]) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-all ${isActive ? "border-white bg-white/10 text-white" : "border-transparent text-zinc-400 hover:bg-white/5 hover:text-white"}`}>
-            <span className="w-4 text-center text-zinc-400">{icon}</span><span>{label}</span>
-          </NavLink>
-        ))}
-      </nav>
-      <div className="border-t border-white/10 p-4">
-        <NavLink to="/moderator/profile" className="flex w-full items-center gap-3 text-left">
-          <div className="relative"><div className="grid h-9 w-9 place-items-center rounded-full bg-zinc-800 text-sm font-medium">{firstLetter(displayName(user))}</div><span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 bg-emerald-400" /></div>
-          <div className="min-w-0"><div className="truncate text-sm font-medium">{displayName(user)}</div><div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Moderator</div></div>
-        </NavLink>
-        <button onClick={onSignOut} className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white"><span>↳</span><span>Sign out</span></button>
-      </div>
-    </aside>
-  );
-}
-
 export default function ModeratorTasks() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [editors, setEditors] = useState([]);
   const [clients, setClients] = useState([]);
@@ -249,7 +208,6 @@ export default function ModeratorTasks() {
     await load();
   };
 
-  const signOut = async () => { if (logout) await logout(); };
 
   const onDragStart = (event, id) => {
     event.dataTransfer.setData("text/plain", id);
@@ -298,10 +256,8 @@ export default function ModeratorTasks() {
     const client = clientMap.get(detail.client_id);
 
     return (
-      <div className="min-h-screen bg-zinc-950 text-white lg:flex">
-        <ModeratorSidebar user={user} onSignOut={signOut} />
-        <main className="min-w-0 flex-1 lg:ml-[228px]">
-          <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-7">
+      <ModeratorLayout>
+          <div className="mx-auto max-w-7xl py-2">
             <div className="mb-8 flex items-start justify-between gap-4 border-b border-white/10 pb-6">
               <div>
                 <button onClick={() => setDetail(null)} className="mb-5 text-sm text-zinc-400 hover:text-white">← Back to Projects</button>
@@ -420,16 +376,13 @@ export default function ModeratorTasks() {
               </aside>
             </div>
           </div>
-        </main>
-      </div>
+      </ModeratorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white lg:flex">
-      <ModeratorSidebar user={user} onSignOut={signOut} />
-      <main className="min-w-0 flex-1 lg:ml-[228px]">
-        <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 lg:px-7">
+    <ModeratorLayout>
+        <div className="mb-0">
           <div className="mb-8">
             <div className="label-xs mb-3 text-zinc-500">Moderator / Tasks</div>
             <h1 className="text-3xl font-semibold tracking-tight">Project Pipeline</h1>
@@ -463,7 +416,6 @@ export default function ModeratorTasks() {
             })}
           </div>
         </div>
-      </main>
-    </div>
+    </ModeratorLayout>
   );
 }

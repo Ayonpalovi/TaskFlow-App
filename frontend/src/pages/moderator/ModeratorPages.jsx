@@ -1,22 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
+import ModeratorLayout from "../../components/ModeratorLayout";
 
 const BLUE = "#0051FF";
-
-const navItems = [
-  ["Overview", "/moderator/overview", "⌂"],
-  ["Projects", "/moderator/projects", "▣"],
-  ["Tasks", "/moderator/tasks", "▦"],
-  ["Team Workload", "/moderator/team-workload", "♧"],
-  ["Client Messages", "/moderator/client-messages", "✉"],
-  ["Reviews", "/moderator/reviews", "☑"],
-  ["Escalations", "/moderator/escalations", "⚠"],
-  ["Calendar", "/moderator/calendar", "□"],
-  ["Chat", "/moderator/chat", "♧"],
-  ["Profile", "/moderator/profile", "◎"],
-];
 
 function formatDate(value) {
   if (!value) return "—";
@@ -102,47 +89,17 @@ function useModeratorData() {
 
 function ModeratorShell({ title, subtitle, children }) {
   const ctx = useModeratorData();
-  const { profile, logout, notice } = ctx;
-
-  const signOut = async () => { if (logout) await logout(); };
+  const { notice } = ctx;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white lg:flex">
-      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-[228px] shrink-0 flex-col border-r border-white/10 bg-zinc-950">
-        <div className="h-[86px] px-5 flex items-center border-b border-white/10">
-          <NavLink to="/moderator/overview" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-md bg-black grid place-items-center overflow-hidden"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /></div>
-            <div><div className="text-sm font-semibold leading-tight">Motionholic OS</div><div className="text-[10px] text-zinc-500 font-mono tracking-[0.25em] uppercase">Creative Agency OS</div></div>
-          </NavLink>
-        </div>
-        <div className="px-5 pt-6 pb-3"><div className="text-[10px] text-zinc-600 font-mono tracking-[0.25em] uppercase">Moderator</div></div>
-        <nav className="flex-1 overflow-y-auto px-3 space-y-1">
-          {navItems.map(([label, to, icon]) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-all ${isActive ? "border-white bg-white/10 text-white" : "border-transparent text-zinc-400 hover:bg-white/5 hover:text-white"}`}>
-              <span className="w-4 text-center text-zinc-400">{icon}</span><span>{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t border-white/10 p-4">
-          <NavLink to="/moderator/profile" className="flex w-full items-center gap-3 text-left">
-            <div className="relative"><div className="grid h-9 w-9 place-items-center rounded-full bg-zinc-800 text-sm font-medium">{firstLetter(profile.real_name)}</div><span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 bg-emerald-400" /></div>
-            <div className="min-w-0"><div className="truncate text-sm font-medium">{profile.real_name}</div><div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Moderator</div></div>
-          </NavLink>
-          <button onClick={signOut} className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white"><span>↳</span><span>Sign out</span></button>
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1 lg:ml-[228px]">
-        <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6 lg:px-7 lg:py-7">
-          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(0,81,255,.22),transparent_35%),rgba(24,24,27,.42)] p-5 shadow-2xl shadow-black/20 md:flex-row md:items-center md:justify-between">
-            <div><div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-zinc-500">Moderator</div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>{subtitle && <p className="mt-2 text-sm text-zinc-400">{subtitle}</p>}</div>
-            <Badge tone="blue">Limited Operations Access</Badge>
-          </div>
-          {notice && <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">{notice}</div>}
-          {children(ctx)}
-        </div>
-      </main>
-    </div>
+    <ModeratorLayout>
+      <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(0,81,255,.22),transparent_35%),rgba(24,24,27,.42)] p-5 shadow-2xl shadow-black/20 md:flex-row md:items-center md:justify-between">
+        <div><div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-zinc-500">Moderator</div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>{subtitle && <p className="mt-2 text-sm text-zinc-400">{subtitle}</p>}</div>
+        <Badge tone="blue">Limited Operations Access</Badge>
+      </div>
+      {notice && <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">{notice}</div>}
+      {children(ctx)}
+    </ModeratorLayout>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import ModeratorLayout from "../../components/ModeratorLayout";
 import { api } from "../../lib/api";
 import {
   CartesianGrid,
@@ -23,19 +23,7 @@ import {
 
 const LIVE_REFRESH_MS = 1000;
 
-const navItems = [
-  ["Overview", "/moderator/overview", "⌂"],
-  ["Projects", "/moderator/projects", "▣"],
-  ["Tasks", "/moderator/tasks", "▦"],
-  ["Create Task", "/moderator/create", "▣"],
-  ["Team Workload", "/moderator/team-workload", "♧"],
-  ["Client Messages", "/moderator/client-messages", "✉"],
-  ["Reviews", "/moderator/reviews", "☑"],
-  ["Escalations", "/moderator/escalations", "⚠"],
-  ["Calendar", "/moderator/calendar", "□"],
-  ["Chat", "/moderator/chat", "♧"],
-  ["Profile", "/moderator/profile", "◎"],
-];
+
 
 const statusColors = {
   available: "#71717A",
@@ -163,7 +151,7 @@ function StatusBreakdownPanel({ statusData }) {
 }
 
 export default function ModeratorCommandOverview() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const inFlightRef = useRef(false);
   const [tasks, setTasks] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -388,41 +376,8 @@ export default function ModeratorCommandOverview() {
     ];
   }, [selectedEditorPerformance]);
 
-  const safeName = profile?.real_name || user?.real_name || user?.display_name || user?.email || "Moderator";
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-white lg:flex">
-      <aside className="fixed left-0 top-0 hidden h-screen w-[228px] shrink-0 flex-col border-r border-white/10 bg-zinc-950 lg:flex">
-        <div className="flex h-[86px] items-center border-b border-white/10 px-5">
-          <NavLink to="/moderator/overview" className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-md bg-black">
-              <img src="/motionholic-logo.png" alt="Motionholic OS" className="h-8 w-8 object-contain" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold leading-tight">Motionholic OS</div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Creative Agency OS</div>
-            </div>
-          </NavLink>
-        </div>
-        <div className="px-5 pb-3 pt-6"><div className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-600">Moderator</div></div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
-          {navItems.map(([label, to, icon]) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm transition-all ${isActive ? "border-white bg-white/10 text-white" : "border-transparent text-zinc-400 hover:bg-white/5 hover:text-white"}`}>
-              <span className="w-4 text-center text-zinc-400">{icon}</span><span>{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t border-white/10 p-4">
-          <NavLink to="/moderator/profile" className="flex w-full items-center gap-3 text-left">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-zinc-800 text-sm font-medium">{String(safeName).charAt(0).toUpperCase()}</div>
-            <div className="min-w-0"><div className="truncate text-sm font-medium">{safeName}</div><div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Moderator</div></div>
-          </NavLink>
-          <button onClick={async () => logout && logout()} className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white"><span>↳</span><span>Sign out</span></button>
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1 lg:ml-[228px]">
-        <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6 lg:px-7 lg:py-7">
+    <ModeratorLayout>
           <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Moderator / Overview</div>
@@ -695,7 +650,6 @@ export default function ModeratorCommandOverview() {
             </Panel>
           </div>
         </div>
-      </main>
-    </div>
+    </ModeratorLayout>
   );
 }
