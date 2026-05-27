@@ -649,7 +649,6 @@ export default function ModeratorCommandOverview() {
               </div>
             </Panel>
           </div>
-        </div>
     </ModeratorLayout>
   );
 }
