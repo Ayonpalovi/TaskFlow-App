@@ -11,6 +11,7 @@ export default function LoginPage() {
 
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (user && user.role) {
     return <Navigate to={`/${user.role}`} replace />;
@@ -32,19 +33,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-zinc-950">
-      {/* Left hero */}
-      <div className="hidden lg:flex relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.pexels.com/photos/31650443/pexels-photo-31650443.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940')] bg-cover bg-center opacity-40" />
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-950/80 to-zinc-950/40" />
+    <div className="relative min-h-screen grid lg:grid-cols-2 overflow-hidden bg-[#05070f] text-white">
+      {/* Animated mesh-gradient backdrop (pure CSS — no external image) */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="auth-blob auth-blob--one" />
+        <div className="auth-blob auth-blob--two" />
+        <div className="auth-blob auth-blob--three" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,7,15,0.65)_100%)]" />
+      </div>
 
+      {/* Left hero */}
+      <div className="hidden lg:flex relative">
         <div className="relative z-10 p-12 flex flex-col justify-between w-full">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md grid place-items-center overflow-hidden">
+            <div className="w-11 h-11 rounded-xl grid place-items-center overflow-hidden ring-1 ring-white/10 bg-white/5 backdrop-blur">
               <img
                 src="/motionholic-logo.png"
                 alt="Motionholic OS"
-                className="w-10 h-10 object-contain"
+                className="w-9 h-9 object-contain"
               />
             </div>
 
@@ -53,14 +59,18 @@ export default function LoginPage() {
             </span>
           </div>
 
-          <div className="space-y-6 max-w-lg">
-            <div className="label-xs text-zinc-400">
-              Creative Agency OS / v1.0
+          <div className="space-y-7 max-w-lg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 backdrop-blur">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="label-xs text-zinc-300">Creative Agency OS / v1.0</span>
             </div>
 
-            <h1 className="text-5xl font-bold leading-tight">
+            <h1 className="text-5xl font-bold leading-[1.08] tracking-tight">
               The operating system for{" "}
-              <span className="text-zinc-400">video editing agencies</span>.
+              <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent">
+                video editing agencies
+              </span>
+              .
             </h1>
 
             <p className="text-zinc-400 text-lg leading-relaxed">
@@ -68,27 +78,26 @@ export default function LoginPage() {
               Keep your whole agency workflow in one command center.
             </p>
 
-            <div className="flex gap-6 pt-4 text-sm">
-              <div>
-                <div className="font-mono text-2xl">03</div>
-                <div className="text-zinc-500 label-xs">Roles</div>
-              </div>
-
-              <div>
-                <div className="font-mono text-2xl">12h</div>
-                <div className="text-zinc-500 label-xs">Request Window</div>
-              </div>
-
-              <div>
-                <div className="font-mono text-2xl">30d</div>
-                <div className="text-zinc-500 label-xs">Performance View</div>
-              </div>
+            <div className="grid grid-cols-3 gap-3 pt-2 max-w-md">
+              {[
+                { v: "03", k: "Roles" },
+                { v: "12h", k: "Request Window" },
+                { v: "30d", k: "Performance View" },
+              ].map((s) => (
+                <div
+                  key={s.k}
+                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 backdrop-blur"
+                >
+                  <div className="font-mono text-2xl text-white">{s.v}</div>
+                  <div className="text-zinc-500 label-xs mt-1">{s.k}</div>
+                </div>
+              ))}
             </div>
           </div>
 
           <div className="text-xs text-zinc-500 font-mono">
             © Motionholic OS.{" "}
-            <a href="/showcase" className="hover:text-white transition-all">
+            <a href="/showcase" className="text-zinc-400 hover:text-white transition-colors">
               Browse editor showcase →
             </a>
           </div>
@@ -96,11 +105,17 @@ export default function LoginPage() {
       </div>
 
       {/* Form */}
-      <div className="flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          <div className="label-xs text-zinc-500 mb-2">Sign in</div>
+      <div className="relative z-10 flex items-center justify-center p-6 sm:p-8">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.04] p-7 sm:p-9 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+          {/* Mobile brand */}
+          <div className="lg:hidden flex items-center gap-2.5 mb-7">
+            <img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" />
+            <span className="font-semibold text-lg tracking-tight">Motionholic OS</span>
+          </div>
 
-          <h2 className="text-3xl font-semibold mb-2">Welcome back</h2>
+          <div className="label-xs text-blue-400 mb-2">Sign in</div>
+
+          <h2 className="text-3xl font-semibold mb-2 tracking-tight">Welcome back</h2>
 
           <p className="text-zinc-400 mb-8 text-sm">
             Enter your credentials to access the workspace.
@@ -122,7 +137,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/10 rounded-md px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20"
+                className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50"
                 placeholder="you@agency.com"
               />
             </div>
@@ -132,21 +147,32 @@ export default function LoginPage() {
                 Password
               </label>
 
-              <input
-                data-testid="login-password-input"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/10 rounded-md px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  data-testid="login-password-input"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg text-[10px] font-mono uppercase tracking-wider text-zinc-500 hover:text-zinc-200 transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </div>
 
             {err && (
               <div
                 data-testid="login-error"
-                className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-md"
+                className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-xl"
               >
                 {err}
               </div>
@@ -156,9 +182,16 @@ export default function LoginPage() {
               data-testid="login-submit-button"
               type="submit"
               disabled={busy}
-              className="w-full bg-white text-black font-medium py-3 rounded-md hover:bg-zinc-200 transition-all disabled:opacity-50"
+              className="group relative w-full overflow-hidden rounded-xl py-3 text-sm font-semibold text-white transition-all disabled:opacity-50"
+              style={{
+                background: "linear-gradient(135deg, #0051FF 0%, #2D71FF 100%)",
+                boxShadow: "0 14px 34px rgba(0,81,255,0.30), inset 0 1px 0 rgba(255,255,255,0.22)",
+              }}
             >
-              {busy ? "Signing in..." : "Sign in"}
+              <span className="relative z-10">
+                {busy ? "Signing in…" : "Sign in"}
+              </span>
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
             </button>
           </form>
 
