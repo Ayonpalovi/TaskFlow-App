@@ -11,6 +11,18 @@ function statusTone(status) {
   return "default";
 }
 
+function roleBucket(role) {
+  if (role === "moderator") return "moderator";
+  if (role === "editor") return "editor";
+  return "client";
+}
+
+const ROLE_SECTIONS = [
+  { key: "editor", label: "Editors" },
+  { key: "moderator", label: "Moderators" },
+  { key: "client", label: "Clients" },
+];
+
 function RoleTag({ role }) {
   const styles = {
     editor: "border-blue-500/25 bg-blue-500/10 text-blue-300",
@@ -226,6 +238,65 @@ export default function AdminUsers() {
 
   const inp = "w-full bg-zinc-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500";
 
+  const renderUserCard = (u) => {
+    const status = u.status || "active";
+    const online = status !== "deactivated" && isUserOnline(u);
+    const skills = u.skills || [];
+    return (
+      <div key={u.id} data-testid={`user-row-${u.id}`} className="relative card-hover flex flex-col border border-white/10 rounded-2xl bg-zinc-900/30 p-5">
+        <button onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} title="Edit profile" className="absolute top-4 right-4 w-8 h-8 rounded-full border border-white/10 grid place-items-center text-zinc-300 hover:text-white hover:border-blue-500/40">↗</button>
+
+        <div className="flex items-center gap-3 pr-10">
+          <div className="relative shrink-0">
+            {u.avatar_url ? (
+              <img src={u.avatar_url} className={`w-12 h-12 object-cover ${u.role === "editor" ? "rounded-xl" : "rounded-full"}`} alt="" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-zinc-800 grid place-items-center text-base text-zinc-300">
+                {(u.anime_name || u.real_name || u.email || "U").charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-zinc-950 ${online ? "bg-emerald-400" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
+          </div>
+          <div className="min-w-0">
+            <div className="font-semibold truncate">{u.anime_name}</div>
+            <div className="text-sm text-zinc-400 truncate">{u.real_name || "—"}</div>
+          </div>
+        </div>
+
+        <div className="mt-3 text-xs text-zinc-500 font-mono truncate">{u.email}</div>
+
+        <div className="mt-4">
+          <div className="label-xs text-zinc-500 mb-2">Skills</div>
+          <div className="flex flex-wrap gap-1.5">
+            {skills.length === 0 && <span className="text-xs text-zinc-600">—</span>}
+            {skills.map((s, i) => (
+              <span key={i} className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300">{s}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
+          <RoleTag role={u.role} />
+          <Badge tone={statusTone(status)}>{status}</Badge>
+          <span className={`inline-flex items-center gap-1.5 text-xs ${online ? "text-emerald-400" : "text-zinc-500"}`}>
+            <span className={`w-2 h-2 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} />
+            {online ? "Online" : formatLastSeen(u.last_seen)}
+          </span>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3 flex-wrap">
+          {status === "deactivated" ? (
+            <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
+          ) : (
+            <button onClick={() => deactivate(u)} data-testid={`deactivate-user-${u.id}`} className="text-xs text-amber-400 hover:text-amber-300">Deactivate</button>
+          )}
+          <button onClick={() => deleteUser(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button>
+          {status === "invited" && <button onClick={() => copyInvite(u)} className="text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Layout allowed={["admin"]}>
       <PageHeader label="Admin / Team" title="Team & Clients" subtitle="Invite editors by email, deactivate accounts safely, or delete accounts when someone leaves the agency.">
@@ -245,67 +316,24 @@ export default function AdminUsers() {
         </select>
       </div>
 
-      <div className="grid sm:grid-cols-2 2xl:grid-cols-3 gap-4">
-        {visibleUsers.map((u) => {
-          const status = u.status || "active";
-          const online = status !== "deactivated" && isUserOnline(u);
-          const skills = u.skills || [];
+      <div className="space-y-8">
+        {ROLE_SECTIONS.map((group) => {
+          const groupUsers = visibleUsers.filter((u) => roleBucket(u.role) === group.key);
+          if (groupUsers.length === 0) return null;
           return (
-            <div key={u.id} data-testid={`user-row-${u.id}`} className="relative card-hover flex flex-col border border-white/10 rounded-2xl bg-zinc-900/30 p-5">
-              <button onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} title="Edit profile" className="absolute top-4 right-4 w-8 h-8 rounded-full border border-white/10 grid place-items-center text-zinc-300 hover:text-white hover:border-blue-500/40">↗</button>
-
-              <div className="flex items-center gap-3 pr-10">
-                <div className="relative shrink-0">
-                  {u.avatar_url ? (
-                    <img src={u.avatar_url} className={`w-12 h-12 object-cover ${u.role === "editor" ? "rounded-xl" : "rounded-full"}`} alt="" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-zinc-800 grid place-items-center text-base text-zinc-300">
-                      {(u.anime_name || u.real_name || u.email || "U").charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-zinc-950 ${online ? "bg-emerald-400" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{u.anime_name}</div>
-                  <div className="text-sm text-zinc-400 truncate">{u.real_name || "—"}</div>
-                </div>
+            <section key={group.key} data-testid={`team-section-${group.key}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-lg font-semibold">{group.label}</h2>
+                <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full border border-white/10 bg-white/5 text-xs font-mono text-zinc-300">{groupUsers.length}</span>
               </div>
-
-              <div className="mt-3 text-xs text-zinc-500 font-mono truncate">{u.email}</div>
-
-              <div className="mt-4">
-                <div className="label-xs text-zinc-500 mb-2">Skills</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {skills.length === 0 && <span className="text-xs text-zinc-600">—</span>}
-                  {skills.map((s, i) => (
-                    <span key={i} className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300">{s}</span>
-                  ))}
-                </div>
+              <div className="grid sm:grid-cols-2 2xl:grid-cols-3 gap-4">
+                {groupUsers.map((u) => renderUserCard(u))}
               </div>
-
-              <div className="mt-4 flex items-center gap-2 flex-wrap">
-                <RoleTag role={u.role} />
-                <Badge tone={statusTone(status)}>{status}</Badge>
-                <span className={`inline-flex items-center gap-1.5 text-xs ${online ? "text-emerald-400" : "text-zinc-500"}`}>
-                  <span className={`w-2 h-2 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} />
-                  {online ? "Online" : formatLastSeen(u.last_seen)}
-                </span>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3 flex-wrap">
-                {status === "deactivated" ? (
-                  <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
-                ) : (
-                  <button onClick={() => deactivate(u)} data-testid={`deactivate-user-${u.id}`} className="text-xs text-amber-400 hover:text-amber-300">Deactivate</button>
-                )}
-                <button onClick={() => deleteUser(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button>
-                {status === "invited" && <button onClick={() => copyInvite(u)} className="text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
-              </div>
-            </div>
+            </section>
           );
         })}
         {visibleUsers.length === 0 && (
-          <div className="sm:col-span-2 2xl:col-span-3 p-8 text-center text-zinc-500 border border-white/10 rounded-2xl bg-zinc-900/30">No users match this view.</div>
+          <div className="p-8 text-center text-zinc-500 border border-white/10 rounded-2xl bg-zinc-900/30">No users match this view.</div>
         )}
       </div>
 
