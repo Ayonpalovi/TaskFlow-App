@@ -756,6 +756,114 @@ async def reject_request(req_id: str, admin: dict = Depends(require_role("admin"
     await db.requests.update_one({"id": req_id}, {"$set": {"status": "rejected"}})
     return {"ok": True}
 
+# --- Absence applications (editors & moderators apply; admin/moderator approve) ---
+class AbsenceIn(BaseModel):
+    reason: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+class AbsenceDecisionIn(BaseModel):
+    note: Optional[str] = ""
+
+def _absence_range(a: dict) -> str:
+    s, e = a.get("start_date"), a.get("end_date")
+    if s and e:
+        return f"{s} → {e}"
+    return s or e or ""
+
+@api.post("/absences")
+async def create_absence(data: AbsenceIn, user: dict = Depends(require_role("editor", "moderator"))):
+    reason = (data.reason or "").strip()
+    if not reason:
+        raise HTTPException(400, "Please explain the reason for your absence.")
+    if await db.absences.find_one({"user_id": user["id"], "status": "pending"}):
+        raise HTTPException(400, "You already have a pending absence request.")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_role": user["role"],
+        "anime_name": user.get("anime_name"),
+        "real_name": user.get("real_name"),
+        "reason": reason,
+        "start_date": data.start_date or None,
+        "end_date": data.end_date or None,
+        "status": "pending",
+        "decision_note": "",
+        "decided_by": None,
+        "decided_by_role": None,
+        "created_at": now_iso(),
+        "decided_at": None,
+    }
+    await db.absences.insert_one(doc)
+    doc.pop("_id", None)
+    who = doc["anime_name"] or doc["real_name"] or "A team member"
+    rng = _absence_range(doc)
+    title = f"Absence request from {who}"
+    body = reason + (f" ({rng})" if rng else "")
+    # Editors -> admins AND moderators review; moderators -> only admins review.
+    await notify_role("admin", "absence_request", title, body=body, link="/admin/absences")
+    if user["role"] == "editor":
+        await notify_role("moderator", "absence_request", title, body=body, link="/moderator/absence")
+    return doc
+
+@api.get("/absences")
+async def list_absences(user: dict = Depends(get_current_user)):
+    mine, pending = [], []
+    if user["role"] in ("editor", "moderator"):
+        mine = await db.absences.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    if user["role"] == "admin":
+        pending = await db.absences.find({"status": "pending"}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    elif user["role"] == "moderator":
+        # Moderators may only review editor absences (admin handles moderator requests).
+        pending = await db.absences.find({"status": "pending", "user_role": "editor"}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    elif user["role"] == "client":
+        raise HTTPException(403, "Forbidden")
+    for a in pending:
+        applicant = await db.users.find_one({"id": a["user_id"]}, {"_id": 0, "password_hash": 0})
+        if applicant:
+            a["applicant"] = scrub_user(applicant, viewer_role=user["role"])
+    return {"mine": mine, "pending": pending}
+
+async def _decide_absence(absence_id: str, decider: dict, approve: bool, note: str = ""):
+    a = await db.absences.find_one({"id": absence_id})
+    if not a:
+        raise HTTPException(404, "Absence request not found")
+    if a["status"] != "pending":
+        raise HTTPException(400, "This request has already been decided.")
+    # Moderators may only decide editor requests; a moderator's own request is admin-only.
+    if decider["role"] == "moderator" and a["user_role"] != "editor":
+        raise HTTPException(403, "Only an admin can decide a moderator's absence request.")
+    new_status = "approved" if approve else "rejected"
+    await db.absences.update_one(
+        {"id": absence_id},
+        {"$set": {
+            "status": new_status,
+            "decision_note": (note or "").strip(),
+            "decided_by": decider["id"],
+            "decided_by_role": decider["role"],
+            "decided_at": now_iso(),
+        }},
+    )
+    rng = _absence_range(a)
+    if approve:
+        body = "Enjoy your holiday! 🌴" + (f" ({rng})" if rng else "")
+        await create_notification(a["user_id"], "absence_approved", "Absence approved 🌴", body=body, link=f"/{a['user_role']}/absence")
+    else:
+        body = "Sorry to inform you — your absence request was not approved."
+        if note and note.strip():
+            body += f" Note: {note.strip()}"
+        await create_notification(a["user_id"], "absence_rejected", "Absence not approved", body=body, link=f"/{a['user_role']}/absence")
+    return {"ok": True, "status": new_status}
+
+@api.post("/absences/{absence_id}/approve")
+async def approve_absence(absence_id: str, decider: dict = Depends(require_role("admin", "moderator"))):
+    return await _decide_absence(absence_id, decider, approve=True)
+
+@api.post("/absences/{absence_id}/reject")
+async def reject_absence(absence_id: str, data: Optional[AbsenceDecisionIn] = None, decider: dict = Depends(require_role("admin", "moderator"))):
+    note = (data.note if data else "") or ""
+    return await _decide_absence(absence_id, decider, approve=False, note=note)
+
 # --- Drafts, Revisions, Approval, Reviews ---
 @api.post("/tasks/{task_id}/drafts")
 async def add_draft(task_id: str, data: DraftIn, user: dict = Depends(get_current_user)):
@@ -1642,6 +1750,8 @@ async def startup():
     await db.messages.create_index("channel")
     await db.requests.create_index("task_id")
     await db.notifications.create_index("user_id")
+    await db.absences.create_index("user_id")
+    await db.absences.create_index("status")
 
     # Start background scheduler
     asyncio.create_task(scheduler_loop())

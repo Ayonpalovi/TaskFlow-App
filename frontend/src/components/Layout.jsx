@@ -10,6 +10,7 @@ const adminNav = [
   { label: "Tasks", path: "/admin/tasks", icon: "▦" },
   { label: "Create Task", path: "/admin/create", icon: "▣" },
   { label: "Team", path: "/admin/users", icon: "♧" },
+  { label: "Absences", path: "/admin/absences", icon: "✈" },
   { label: "Payments", path: "/admin/payments", icon: "$" },
   { label: "Calendar", path: "/admin/calendar", icon: "□" },
   { label: "Leaderboard", path: "/admin/leaderboard", icon: "♕" },
@@ -26,6 +27,7 @@ const moderatorNav = [
   { label: "Client Messages", path: "/moderator/client-messages", icon: "✉" },
   { label: "Reviews", path: "/moderator/reviews", icon: "☑" },
   { label: "Escalations", path: "/moderator/escalations", icon: "⚠" },
+  { label: "Absence", path: "/moderator/absence", icon: "✈" },
   { label: "Calendar", path: "/moderator/calendar", icon: "□" },
   { label: "Chat", path: "/moderator/chat", icon: "♧" },
   { label: "Profile", path: "/moderator/profile", icon: "◎" },
@@ -38,6 +40,7 @@ const editorNav = [
   { label: "Available", path: "/editor/available", icon: "▱" },
   { label: "My Projects", path: "/editor/projects", icon: "▣" },
   { label: "Performance", path: "/editor/performance", icon: "▥" },
+  { label: "Absence", path: "/editor/absence", icon: "✈" },
   { label: "Leaderboard", path: "/editor/leaderboard", icon: "♕" },
   { label: "Chat", path: "/editor/chat", icon: "♧" },
 ];

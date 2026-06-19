@@ -7,6 +7,7 @@ import DashboardMotionProvider from "./components/DashboardMotionProvider";
 import ModeratorRoleOptionPatch from "./components/ModeratorRoleOptionPatch";
 import AdminFinanceAccessApprovalWidget from "./components/AdminFinanceAccessApprovalWidget";
 import AdminModeratorEscalationNotes from "./components/AdminModeratorEscalationNotes";
+import AbsenceResultPopup from "./components/AbsenceResultPopup";
 
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -47,6 +48,7 @@ import {
   ModeratorProfile,
 } from "./pages/moderator/ModeratorPages";
 import ChatPage from "./pages/ChatPage";
+import AbsenceMode from "./pages/AbsenceMode";
 
 function PermanentDarkMode() {
   useEffect(() => {
@@ -110,6 +112,7 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
+          <AbsenceResultPopup />
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
@@ -123,6 +126,7 @@ function App() {
             <Route path="/admin/approvals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminApprovals /></ProtectedRoute>} />
             <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminPayments /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["admin"]}><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/absences" element={<ProtectedRoute allowedRoles={["admin"]}><AbsenceMode /></ProtectedRoute>} />
             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
@@ -137,6 +141,7 @@ function App() {
             <Route path="/moderator/client-messages" element={<ModRoute><ModeratorClientMessages /></ModRoute>} />
             <Route path="/moderator/reviews" element={<ModRoute><ModeratorReviews /></ModRoute>} />
             <Route path="/moderator/escalations" element={<ModRoute><ModeratorEscalations /></ModRoute>} />
+            <Route path="/moderator/absence" element={<ModRoute><AbsenceMode /></ModRoute>} />
             <Route path="/moderator/calendar" element={<ModRoute><ModeratorCalendar /></ModRoute>} />
             <Route path="/moderator/chat" element={<ModRoute><ChatPage mode="moderator" /></ModRoute>} />
             <Route path="/moderator/profile" element={<ModRoute><ModeratorProfile /></ModRoute>} />
@@ -147,6 +152,7 @@ function App() {
             <Route path="/editor/available" element={<ProtectedRoute allowedRoles={["editor"]}><EditorAvailable /></ProtectedRoute>} />
             <Route path="/editor/projects" element={<ProtectedRoute allowedRoles={["editor"]}><EditorProjects /></ProtectedRoute>} />
             <Route path="/editor/performance" element={<ProtectedRoute allowedRoles={["editor"]}><EditorPerformance /></ProtectedRoute>} />
+            <Route path="/editor/absence" element={<ProtectedRoute allowedRoles={["editor"]}><AbsenceMode /></ProtectedRoute>} />
             <Route path="/editor/leaderboard" element={<ProtectedRoute allowedRoles={["editor"]}><Leaderboard allowed={["editor"]} /></ProtectedRoute>} />
             <Route path="/editor/chat" element={<ProtectedRoute allowedRoles={["editor"]}><ChatPage mode="editor" /></ProtectedRoute>} />
             <Route path="/client" element={<ProtectedRoute allowedRoles={["client"]}><ClientDashboard /></ProtectedRoute>} />
