@@ -93,28 +93,30 @@ h1, h2, h3, h4, h5, h6 {
 /* Motionholic OS theme system */
 :root,
 html[data-mh-theme="dark"] {
-    --mh-theme-bg: #05070f;
-    --mh-theme-bg-end: #030409;
+    --mh-theme-bg: #000000;
+    --mh-theme-bg-end: #000000;
     --mh-theme-text: #ffffff;
-    --mh-theme-muted: rgba(255,255,255,0.62);
-    --mh-theme-faint: rgba(255,255,255,0.42);
-    --mh-theme-card: rgba(255,255,255,0.045);
-    --mh-theme-card-strong: rgba(12,15,24,0.76);
-    --mh-theme-border: rgba(255,255,255,0.08);
-    --mh-theme-sidebar: rgba(5,7,15,0.74);
-    --mh-theme-sidebar-strong: rgba(3,4,9,0.86);
-    --mh-theme-input: rgba(7,10,18,0.68);
-    --mh-theme-grid: rgba(255,255,255,0.12);
-    --mh-theme-shadow: 0 20px 60px rgba(0,0,0,0.34);
-    --mh-theme-blue-shadow: 0 18px 50px rgba(0,81,255,0.12);
+    --mh-theme-muted: rgba(255,255,255,0.60);
+    --mh-theme-faint: rgba(255,255,255,0.40);
+    --mh-theme-card: rgba(255,255,255,0.05);
+    --mh-theme-card-strong: rgba(8,9,12,0.90);
+    --mh-theme-border: rgba(255,255,255,0.09);
+    --mh-theme-sidebar: rgba(0,0,0,0.82);
+    --mh-theme-sidebar-strong: rgba(0,0,0,0.94);
+    --mh-theme-input: rgba(255,255,255,0.03);
+    --mh-theme-grid: rgba(255,255,255,0.10);
+    --mh-theme-shadow: 0 24px 70px rgba(0,0,0,0.60);
+    --mh-theme-blue-shadow: 0 18px 50px rgba(0,81,255,0.16);
+    /* Pure-black field with faint brand-blue ambient blooms in the corners */
     --mh-theme-background:
-        radial-gradient(circle at top left, rgba(0,81,255,0.20), transparent 35%),
-        radial-gradient(circle at top right, rgba(80,120,255,0.12), transparent 30%),
-        linear-gradient(180deg, #05070f 0%, #080a12 45%, #030409 100%);
+        radial-gradient(1100px circle at 6% -10%, rgba(0,81,255,0.18), transparent 42%),
+        radial-gradient(950px circle at 100% -6%, rgba(110,90,255,0.10), transparent 40%),
+        radial-gradient(1000px circle at 50% 118%, rgba(0,81,255,0.10), transparent 48%),
+        #000000;
     --mh-theme-blob:
-        radial-gradient(circle at 18% 18%, rgba(0,81,255,0.18), transparent 24%),
-        radial-gradient(circle at 78% 22%, rgba(86,127,255,0.12), transparent 22%),
-        radial-gradient(circle at 54% 92%, rgba(0,81,255,0.10), transparent 32%);
+        radial-gradient(circle at 18% 16%, rgba(0,81,255,0.14), transparent 26%),
+        radial-gradient(circle at 80% 20%, rgba(86,127,255,0.08), transparent 24%),
+        radial-gradient(circle at 52% 94%, rgba(0,81,255,0.08), transparent 34%);
 }
 
 html[data-mh-theme="light"] {
@@ -426,4 +428,61 @@ html[data-mh-theme="light"] body #root .App audio {
     .mh-theme-toggle__text {
         display: none;
     }
+}
+
+/* ============================================================
+   Black + glow refresh — data-driven accents on a pure-black field.
+   The numbers/situations already drive the COLOR of these elements
+   (workload bars, deadline risk, per-metric themes, status badges);
+   here we only make those colors GLOW so they read on true black.
+   No component markup is changed — colors/glow only.
+   ============================================================ */
+
+/* Large numeric values glow in whatever data-driven color they already are */
+html[data-mh-theme="dark"] body #root .App .font-mono.text-3xl,
+html[data-mh-theme="dark"] body #root .App .font-mono.text-2xl,
+html[data-mh-theme="dark"] body #root .App .font-mono.text-xl {
+    text-shadow:
+        0 0 26px color-mix(in srgb, currentColor 55%, transparent),
+        0 0 8px color-mix(in srgb, currentColor 35%, transparent);
+}
+
+/* Status dots & indicator pills emit a halo in their own situational color */
+html[data-mh-theme="dark"] body #root .App .bg-blue-400,
+html[data-mh-theme="dark"] body #root .App .bg-blue-500 {
+    box-shadow: 0 0 12px rgba(59,130,246,0.65) !important;
+}
+html[data-mh-theme="dark"] body #root .App .bg-emerald-400,
+html[data-mh-theme="dark"] body #root .App .bg-emerald-500 {
+    box-shadow: 0 0 12px rgba(16,185,129,0.60) !important;
+}
+html[data-mh-theme="dark"] body #root .App .bg-amber-400,
+html[data-mh-theme="dark"] body #root .App .bg-amber-500 {
+    box-shadow: 0 0 12px rgba(245,158,11,0.60) !important;
+}
+html[data-mh-theme="dark"] body #root .App .bg-red-400,
+html[data-mh-theme="dark"] body #root .App .bg-red-500 {
+    box-shadow: 0 0 12px rgba(239,68,68,0.65) !important;
+}
+html[data-mh-theme="dark"] body #root .App .bg-purple-400,
+html[data-mh-theme="dark"] body #root .App .bg-purple-500 {
+    box-shadow: 0 0 12px rgba(168,85,247,0.60) !important;
+}
+html[data-mh-theme="dark"] body #root .App .bg-cyan-400,
+html[data-mh-theme="dark"] body #root .App .bg-cyan-500 {
+    box-shadow: 0 0 12px rgba(6,182,212,0.60) !important;
+}
+
+/* Severity / status chips (good · warn · bad · blue) get a faint matching halo */
+html[data-mh-theme="dark"] body #root .App .bg-emerald-500\/10 {
+    box-shadow: 0 0 16px rgba(16,185,129,0.16);
+}
+html[data-mh-theme="dark"] body #root .App .bg-amber-500\/10 {
+    box-shadow: 0 0 16px rgba(245,158,11,0.16);
+}
+html[data-mh-theme="dark"] body #root .App .bg-red-500\/10 {
+    box-shadow: 0 0 16px rgba(239,68,68,0.18);
+}
+html[data-mh-theme="dark"] body #root .App .bg-blue-500\/10 {
+    box-shadow: 0 0 16px rgba(59,130,246,0.16);
 }
