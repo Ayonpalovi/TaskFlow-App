@@ -245,76 +245,68 @@ export default function AdminUsers() {
         </select>
       </div>
 
-      <div className="border border-white/10 rounded-2xl bg-zinc-900/30 overflow-hidden shadow-2xl shadow-black/20">
-        <table className="w-full text-sm">
-          <thead className="bg-white/5">
-            <tr className="text-left label-xs text-zinc-400">
-              <th className="p-3">Anon Name</th>
-              <th className="p-3">Real Name</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Role</th>
-              <th className="p-3">Skills</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Online</th>
-              <th className="p-3">Access</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleUsers.map((u) => {
-              const status = u.status || "active";
-              const online = status !== "deactivated" && isUserOnline(u);
-              return (
-                <tr key={u.id} className="border-t border-white/5" data-testid={`user-row-${u.id}`}>
-                  <td className="p-3 flex items-center gap-2">
-                    <div className="relative shrink-0">
-                      {u.avatar_url ? (
-                        <img src={u.avatar_url} className={`w-7 h-7 object-cover ${u.role === "editor" ? "rounded-md" : "rounded-full"}`} alt="" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-zinc-800 grid place-items-center text-xs text-zinc-300">
-                          {(u.anime_name || u.real_name || u.email || "U").charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-zinc-950 ${online ? "bg-emerald-400" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
+      <div className="grid sm:grid-cols-2 2xl:grid-cols-3 gap-4">
+        {visibleUsers.map((u) => {
+          const status = u.status || "active";
+          const online = status !== "deactivated" && isUserOnline(u);
+          const skills = u.skills || [];
+          return (
+            <div key={u.id} data-testid={`user-row-${u.id}`} className="relative card-hover flex flex-col border border-white/10 rounded-2xl bg-zinc-900/30 p-5">
+              <button onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} title="Edit profile" className="absolute top-4 right-4 w-8 h-8 rounded-full border border-white/10 grid place-items-center text-zinc-300 hover:text-white hover:border-blue-500/40">↗</button>
+
+              <div className="flex items-center gap-3 pr-10">
+                <div className="relative shrink-0">
+                  {u.avatar_url ? (
+                    <img src={u.avatar_url} className={`w-12 h-12 object-cover ${u.role === "editor" ? "rounded-xl" : "rounded-full"}`} alt="" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 grid place-items-center text-base text-zinc-300">
+                      {(u.anime_name || u.real_name || u.email || "U").charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {u.anime_name}
-                        {online && <span className="text-[10px] text-emerald-400">online</span>}
-                      </div>
-                      <div className="text-[10px] text-zinc-600">{formatLastSeen(u.last_seen)}</div>
-                    </div>
-                  </td>
-                  <td className="p-3 text-zinc-400">{u.real_name}</td>
-                  <td className="p-3 text-zinc-400 font-mono text-xs">{u.email}</td>
-                  <td className="p-3"><RoleTag role={u.role} /></td>
-                  <td className="p-3 text-xs text-zinc-400 max-w-[220px] truncate">{(u.skills || []).join(", ") || "—"}</td>
-                  <td className="p-3"><Badge tone={statusTone(status)}>{status}</Badge></td>
-                  <td className="p-3">
-                    <span className={`inline-flex items-center gap-1.5 text-xs ${online ? "text-emerald-400" : "text-zinc-500"}`}>
-                      <span className={`w-2 h-2 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} />
-                      {online ? "Online" : "Offline"}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <button onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
-                      {status === "deactivated" ? (
-                        <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
-                      ) : (
-                        <button onClick={() => deactivate(u)} data-testid={`deactivate-user-${u.id}`} className="text-xs text-amber-400 hover:text-amber-300">Deactivate</button>
-                      )}
-                      <button onClick={() => deleteUser(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button>
-                      {status === "invited" && <button onClick={() => copyInvite(u)} className="text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {visibleUsers.length === 0 && (
-              <tr><td colSpan="8" className="p-8 text-center text-zinc-500">No users match this view.</td></tr>
-            )}
-          </tbody>
-        </table>
+                  )}
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-zinc-950 ${online ? "bg-emerald-400" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{u.anime_name}</div>
+                  <div className="text-sm text-zinc-400 truncate">{u.real_name || "—"}</div>
+                </div>
+              </div>
+
+              <div className="mt-3 text-xs text-zinc-500 font-mono truncate">{u.email}</div>
+
+              <div className="mt-4">
+                <div className="label-xs text-zinc-500 mb-2">Skills</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {skills.length === 0 && <span className="text-xs text-zinc-600">—</span>}
+                  {skills.map((s, i) => (
+                    <span key={i} className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300">{s}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 flex-wrap">
+                <RoleTag role={u.role} />
+                <Badge tone={statusTone(status)}>{status}</Badge>
+                <span className={`inline-flex items-center gap-1.5 text-xs ${online ? "text-emerald-400" : "text-zinc-500"}`}>
+                  <span className={`w-2 h-2 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} />
+                  {online ? "Online" : formatLastSeen(u.last_seen)}
+                </span>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3 flex-wrap">
+                {status === "deactivated" ? (
+                  <button onClick={() => reactivate(u)} className="text-xs text-emerald-400 hover:text-emerald-300">Reactivate</button>
+                ) : (
+                  <button onClick={() => deactivate(u)} data-testid={`deactivate-user-${u.id}`} className="text-xs text-amber-400 hover:text-amber-300">Deactivate</button>
+                )}
+                <button onClick={() => deleteUser(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button>
+                {status === "invited" && <button onClick={() => copyInvite(u)} className="text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
+              </div>
+            </div>
+          );
+        })}
+        {visibleUsers.length === 0 && (
+          <div className="sm:col-span-2 2xl:col-span-3 p-8 text-center text-zinc-500 border border-white/10 rounded-2xl bg-zinc-900/30">No users match this view.</div>
+        )}
       </div>
 
       {open && (
