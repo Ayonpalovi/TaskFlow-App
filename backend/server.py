@@ -94,6 +94,11 @@ def require_role(*roles):
         return user
     return checker
 
+async def require_growth_access(user: dict = Depends(get_current_user)) -> dict:
+    if user["role"] != "admin" and not user.get("lead_gen_access"):
+        raise HTTPException(403, "You don't have access to Growth mode. Ask an admin to enable it.")
+    return user
+
 # --- Models ---
 class LoginIn(BaseModel):
     email: EmailStr
@@ -187,6 +192,7 @@ def scrub_user(u: dict, viewer_role: str = None) -> dict:
         "badges": u.get("badges", []),
         "top_videos": u.get("top_videos", []),
         "burnout": u.get("burnout", "low"),
+        "lead_gen_access": u.get("lead_gen_access", False),
     }
     if viewer_role == "admin":
         out["real_name"] = u.get("real_name")
@@ -460,6 +466,18 @@ async def list_users(
 async def delete_user(user_id: str, admin: dict = Depends(require_role("admin"))):
     await db.users.delete_one({"id": user_id})
     return {"ok": True}
+
+class GrowthAccessIn(BaseModel):
+    lead_gen_access: bool
+
+@api.patch("/users/{user_id}/growth-access")
+async def set_growth_access(user_id: str, data: GrowthAccessIn, admin: dict = Depends(require_role("admin"))):
+    target = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not target:
+        raise HTTPException(404, "User not found")
+    await db.users.update_one({"id": user_id}, {"$set": {"lead_gen_access": data.lead_gen_access}})
+    target["lead_gen_access"] = data.lead_gen_access
+    return scrub_user(target, viewer_role="admin")
 
 # --- Projects / Tasks ---
 @api.post("/tasks")
@@ -1736,6 +1754,17 @@ from workflow_api import build_workflow_router
 
 app.include_router(build_workflow_router(sys.modules[__name__]))
 
+# --- Growth mode (lead gen / CRM) ---
+from growth_leads import router as growth_leads_router
+from growth_marketing import router as growth_marketing_router
+from growth_support import router as growth_support_router
+from growth_analytics import router as growth_analytics_router
+
+app.include_router(growth_leads_router)
+app.include_router(growth_marketing_router)
+app.include_router(growth_support_router)
+app.include_router(growth_analytics_router)
+
 # --- Logging & Startup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1752,6 +1781,11 @@ async def startup():
     await db.notifications.create_index("user_id")
     await db.absences.create_index("user_id")
     await db.absences.create_index("status")
+
+    # Growth mode (lead gen / CRM) indexes
+    await db.growth_leads.create_index("stage")
+    await db.growth_activities.create_index("lead_id")
+    await db.growth_followups.create_index("lead_id")
 
     # Start background scheduler
     asyncio.create_task(scheduler_loop())

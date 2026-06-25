@@ -54,6 +54,15 @@ const clientNav = [
   { label: "Message Admin", path: "/client/chat", icon: "♧" },
 ];
 
+const growthNav = [
+  { label: "Dashboard", path: "/growth", icon: "⌂" },
+  { label: "Analytics", path: "/growth/analytics", icon: "◫" },
+  { label: "Leads / CRM", path: "/growth/leads", icon: "▣" },
+  { label: "Pipeline", path: "/growth/pipeline", icon: "▦" },
+  { label: "Marketing", path: "/growth/marketing", icon: "✦" },
+  { label: "Support", path: "/growth/support", icon: "♧" },
+];
+
 const PUSH_PREF_KEY = "motionholic_os_layout_push_enabled";
 
 function getNav(role) {
@@ -62,6 +71,14 @@ function getNav(role) {
   if (role === "editor") return editorNav;
   if (role === "client") return clientNav;
   return [];
+}
+
+function canAccessGrowth(user) {
+  return !!user && (user.role === "admin" || !!user.lead_gen_access);
+}
+
+function agencyHomePath(role) {
+  return role === "moderator" ? "/moderator/overview" : `/${role}`;
 }
 
 function roleLabel(role) {
@@ -129,7 +146,7 @@ function NavItems({ nav, userRole, onNavigate, chatUnread = 0 }) {
         <NavLink
           key={item.path}
           to={item.path}
-          end={item.path === `/${userRole}`}
+          end={item.path === `/${userRole}` || item.path === "/growth"}
           onClick={onNavigate}
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all border-l-2 ${
@@ -149,6 +166,35 @@ function NavItems({ nav, userRole, onNavigate, chatUnread = 0 }) {
         </NavLink>
       ))}
     </nav>
+  );
+}
+
+function ModeSwitcher({ inGrowthMode, agencyHome, onNavigate }) {
+  return (
+    <div className="px-5 pb-4">
+      <div className="flex items-center rounded-md border border-white/10 bg-zinc-900 p-0.5 text-xs">
+        <Link
+          to={agencyHome}
+          onClick={onNavigate}
+          data-testid="mode-switch-agency"
+          className={`flex-1 text-center rounded-sm py-1.5 transition-all ${
+            !inGrowthMode ? "bg-white text-black font-medium" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          Agency
+        </Link>
+        <Link
+          to="/growth"
+          onClick={onNavigate}
+          data-testid="mode-switch-growth"
+          className={`flex-1 text-center rounded-sm py-1.5 transition-all ${
+            inGrowthMode ? "bg-white text-black font-medium" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          Growth
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -324,7 +370,9 @@ export default function Layout({ children, allowed = [] }) {
     return localStorage.getItem(PUSH_PREF_KEY) === "true";
   });
   const [knownNotificationIds, setKnownNotificationIds] = useState(new Set());
-  const nav = getNav(user?.role);
+  const inGrowthMode = location.pathname.startsWith("/growth");
+  const nav = inGrowthMode ? growthNav : getNav(user?.role);
+  const agencyHome = user ? agencyHomePath(user.role) : "/login";
 
   const loadUnreadCount = useCallback(async () => {
     if (!user) return;
@@ -410,19 +458,20 @@ export default function Layout({ children, allowed = [] }) {
     <div className="min-h-screen bg-zinc-950 text-white lg:flex">
       <aside className="hidden lg:flex w-[228px] shrink-0 h-screen border-r border-white/10 bg-zinc-950 flex-col fixed left-0 top-0">
         <div className="h-[86px] px-5 flex items-center border-b border-white/10">
-          <Link to={`/${user.role}`} className="flex items-center gap-3">
+          <Link to={inGrowthMode ? "/growth" : agencyHome} className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-md bg-black grid place-items-center overflow-hidden"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /></div>
-            <div><div className="text-sm font-semibold leading-tight">Motionholic OS</div><div className="text-[10px] text-zinc-500 font-mono tracking-[0.25em] uppercase">Creative Agency OS</div></div>
+            <div><div className="text-sm font-semibold leading-tight">Motionholic OS</div><div className="text-[10px] text-zinc-500 font-mono tracking-[0.25em] uppercase">{inGrowthMode ? "Growth Console" : "Creative Agency OS"}</div></div>
           </Link>
         </div>
-        <div className="px-5 pt-6 pb-3"><div className="text-[10px] text-zinc-600 font-mono tracking-[0.25em] uppercase">{roleLabel(user.role)}</div></div>
+        {canAccessGrowth(user) && <ModeSwitcher inGrowthMode={inGrowthMode} agencyHome={agencyHome} />}
+        <div className="px-5 pt-3 pb-3"><div className="text-[10px] text-zinc-600 font-mono tracking-[0.25em] uppercase">{inGrowthMode ? "Growth mode" : roleLabel(user.role)}</div></div>
         <div className="flex-1 overflow-y-auto"><NavItems nav={nav} userRole={user.role} chatUnread={chatUnreadTotal} /></div>
         <UserFooter user={user} unreadCount={unreadCount} onNotifications={() => setNotificationsOpen(true)} onLogout={handleLogout} />
       </aside>
 
       <header className="lg:hidden sticky top-0 z-40 h-16 bg-zinc-950/95 backdrop-blur border-b border-white/10 px-4 flex items-center justify-between">
         <button type="button" onClick={() => setMobileMenuOpen(true)} className="w-10 h-10 rounded-md border border-white/10 grid place-items-center text-zinc-300">☰</button>
-        <Link to={`/${user.role}`} className="flex items-center gap-2"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /><span className="text-sm font-semibold">Motionholic OS</span></Link>
+        <Link to={inGrowthMode ? "/growth" : agencyHome} className="flex items-center gap-2"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /><span className="text-sm font-semibold">Motionholic OS</span></Link>
         <button type="button" onClick={() => setNotificationsOpen(true)} className="relative w-10 h-10 rounded-md border border-white/10 grid place-items-center text-zinc-300">🔔{unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button>
       </header>
 
@@ -431,9 +480,10 @@ export default function Layout({ children, allowed = [] }) {
           <button type="button" aria-label="Close mobile menu" className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} />
           <div className="absolute left-0 top-0 bottom-0 w-[285px] max-w-[85vw] bg-zinc-950 border-r border-white/10 flex flex-col">
             <div className="h-16 px-4 flex items-center justify-between border-b border-white/10">
-              <div className="flex items-center gap-2"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /><div><div className="text-sm font-semibold">Motionholic OS</div><div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em]">{roleLabel(user.role)}</div></div></div>
+              <div className="flex items-center gap-2"><img src="/motionholic-logo.png" alt="Motionholic OS" className="w-8 h-8 object-contain" /><div><div className="text-sm font-semibold">Motionholic OS</div><div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em]">{inGrowthMode ? "Growth mode" : roleLabel(user.role)}</div></div></div>
               <button type="button" onClick={() => setMobileMenuOpen(false)} className="w-8 h-8 rounded-md border border-white/10 text-zinc-400">×</button>
             </div>
+            {canAccessGrowth(user) && <ModeSwitcher inGrowthMode={inGrowthMode} agencyHome={agencyHome} onNavigate={() => setMobileMenuOpen(false)} />}
             <div className="flex-1 overflow-y-auto py-4"><NavItems nav={nav} userRole={user.role} onNavigate={() => setMobileMenuOpen(false)} chatUnread={chatUnreadTotal} /></div>
             <UserFooter user={user} unreadCount={unreadCount} onNotifications={() => { setMobileMenuOpen(false); setNotificationsOpen(true); }} onLogout={handleLogout} />
           </div>

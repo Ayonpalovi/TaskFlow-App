@@ -50,6 +50,14 @@ import {
 import ChatPage from "./pages/ChatPage";
 import AbsenceMode from "./pages/AbsenceMode";
 
+import { Toaster } from "@/components/ui/sonner";
+import GrowthDashboard from "./pages/growth/GrowthDashboard";
+import GrowthAnalytics from "./pages/growth/GrowthAnalytics";
+import GrowthLeads from "./pages/growth/GrowthLeads";
+import GrowthPipeline from "./pages/growth/GrowthPipeline";
+import GrowthMarketing from "./pages/growth/GrowthMarketing";
+import GrowthSupport from "./pages/growth/GrowthSupport";
+
 function PermanentDarkMode() {
   useEffect(() => {
     document.documentElement.setAttribute("data-mh-theme", "dark");
@@ -92,6 +100,15 @@ function ModRoute({ children }) {
   return <ProtectedRoute allowedRoles={["moderator"]}>{children}</ProtectedRoute>;
 }
 
+function GrowthRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user || !user.role) return <Navigate to="/login" replace />;
+  const hasAccess = user.role === "admin" || !!user.lead_gen_access;
+  if (!hasAccess) return <Navigate to="/" replace />;
+  return children;
+}
+
 function AdminOverviewRoute() {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
@@ -109,6 +126,7 @@ function App() {
     <div className="App">
       <PermanentDarkMode />
       <ModeratorRoleOptionPatch />
+      <Toaster />
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
@@ -161,6 +179,14 @@ function App() {
             <Route path="/client/panel" element={<ProtectedRoute allowedRoles={["client"]}><ClientPanel /></ProtectedRoute>} />
             <Route path="/client/create" element={<ProtectedRoute allowedRoles={["client"]}><ClientCreateProject /></ProtectedRoute>} />
             <Route path="/client/chat" element={<ProtectedRoute allowedRoles={["client"]}><ChatPage mode="client" /></ProtectedRoute>} />
+
+            <Route path="/growth" element={<GrowthRoute><GrowthDashboard /></GrowthRoute>} />
+            <Route path="/growth/analytics" element={<GrowthRoute><GrowthAnalytics /></GrowthRoute>} />
+            <Route path="/growth/leads" element={<GrowthRoute><GrowthLeads /></GrowthRoute>} />
+            <Route path="/growth/pipeline" element={<GrowthRoute><GrowthPipeline /></GrowthRoute>} />
+            <Route path="/growth/marketing" element={<GrowthRoute><GrowthMarketing /></GrowthRoute>} />
+            <Route path="/growth/support" element={<GrowthRoute><GrowthSupport /></GrowthRoute>} />
+
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>

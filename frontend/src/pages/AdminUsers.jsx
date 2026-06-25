@@ -227,6 +227,18 @@ export default function AdminUsers() {
     }
   };
 
+  const toggleGrowthAccess = async (user) => {
+    setErr("");
+    setNotice("");
+    try {
+      const { data } = await api.patch(`/users/${user.id}/growth-access`, { lead_gen_access: !user.lead_gen_access });
+      setNotice(`Growth mode access ${data.lead_gen_access ? "granted to" : "revoked from"} ${user.email}.`);
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e?.response?.data?.detail || e.message));
+    }
+  };
+
   const copyInvite = async (user) => {
     if (!user.invite_url) {
       setNotice("Invite links are only shown right after creating a new invite.");
@@ -278,6 +290,7 @@ export default function AdminUsers() {
         <div className="mt-4 flex items-center gap-2 flex-wrap">
           <RoleTag role={u.role} />
           <Badge tone={statusTone(status)}>{status}</Badge>
+          {u.lead_gen_access && <Badge tone="blue">growth access</Badge>}
           <span className={`inline-flex items-center gap-1.5 text-xs ${online ? "text-emerald-400" : "text-zinc-500"}`}>
             <span className={`w-2 h-2 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} />
             {online ? "Online" : formatLastSeen(u.last_seen)}
@@ -292,6 +305,13 @@ export default function AdminUsers() {
           )}
           <button onClick={() => deleteUser(u)} data-testid={`delete-user-${u.id}`} className="text-xs text-red-400 hover:text-red-300">Delete</button>
           {status === "invited" && <button onClick={() => copyInvite(u)} className="text-xs text-blue-400 hover:text-blue-300">Copy invite</button>}
+          <button
+            onClick={() => toggleGrowthAccess(u)}
+            data-testid={`toggle-growth-access-${u.id}`}
+            className={`text-xs ${u.lead_gen_access ? "text-zinc-400 hover:text-zinc-300" : "text-blue-400 hover:text-blue-300"}`}
+          >
+            {u.lead_gen_access ? "Revoke growth access" : "Grant growth access"}
+          </button>
         </div>
       </div>
     );
