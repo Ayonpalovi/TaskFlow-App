@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { api } from "../lib/api";
 
 const adminNav = [
@@ -12,6 +13,12 @@ const adminNav = [
   { label: "Team", path: "/admin/users", icon: "♧" },
   { label: "Absences", path: "/admin/absences", icon: "✈" },
   { label: "Payments", path: "/admin/payments", icon: "$" },
+  { label: "Project Pipeline", path: "/admin/pipeline", icon: "▤" },
+  { label: "Invoices", path: "/admin/invoices", icon: "▧" },
+  { label: "Client Onboarding", path: "/admin/onboarding", icon: "◪" },
+  { label: "Delivery", path: "/admin/delivery", icon: "➤" },
+  { label: "Referrals", path: "/admin/referrals", icon: "★" },
+  { label: "Time & Profit", path: "/admin/time-profit", icon: "◷" },
   { label: "Calendar", path: "/admin/calendar", icon: "□" },
   { label: "Leaderboard", path: "/admin/leaderboard", icon: "♕" },
   { label: "Chat", path: "/admin/chat", icon: "♧" },
@@ -333,6 +340,22 @@ function NotificationsPanel({ open, onClose, onUnreadChange, pushEnabled, permis
   );
 }
 
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white transition-colors"
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label="Toggle color theme"
+    >
+      {isDark ? "☾" : "☀"}
+    </button>
+  );
+}
+
 function UserFooter({ user, unreadCount, onNotifications, onLogout }) {
   return (
     <div className="border-t border-white/10 p-4">
@@ -347,10 +370,13 @@ function UserFooter({ user, unreadCount, onNotifications, onLogout }) {
             <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.2em]">{user.role}</div>
           </div>
         </div>
-        <button type="button" onClick={onNotifications} className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white" title="Notifications">
-          🔔
-          {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <ThemeToggle />
+          <button type="button" onClick={onNotifications} className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white" title="Notifications">
+            🔔
+            {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+          </button>
+        </div>
       </div>
       <button type="button" onClick={onLogout} className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-all"><span>↳</span><span>Sign out</span></button>
     </div>
