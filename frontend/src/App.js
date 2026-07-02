@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@/App.css";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import DashboardMotionProvider from "./components/DashboardMotionProvider";
 import ModeratorRoleOptionPatch from "./components/ModeratorRoleOptionPatch";
 import AdminFinanceAccessApprovalWidget from "./components/AdminFinanceAccessApprovalWidget";
@@ -58,17 +58,12 @@ import GrowthPipeline from "./pages/growth/GrowthPipeline";
 import GrowthMarketing from "./pages/growth/GrowthMarketing";
 import GrowthSupport from "./pages/growth/GrowthSupport";
 
-function PermanentDarkMode() {
-  useEffect(() => {
-    document.documentElement.setAttribute("data-mh-theme", "dark");
-    try {
-      localStorage.setItem("motionholic_os_theme", "dark");
-    } catch {
-      // Dark mode remains the permanent UI default.
-    }
-  }, []);
-  return null;
-}
+import ProjectPipeline from "./pages/agency/ProjectPipeline";
+import InvoiceManager from "./pages/agency/InvoiceManager";
+import ClientOnboarding from "./pages/agency/ClientOnboarding";
+import DeliveryPage, { PublicDeliveryPage } from "./pages/agency/DeliveryPage";
+import ReferralTracker from "./pages/agency/ReferralTracker";
+import TimeProfitTracker from "./pages/agency/TimeProfitTracker";
 
 function LoadingScreen() {
   return (
@@ -124,9 +119,9 @@ function AdminOverviewRoute() {
 function App() {
   return (
     <div className="App">
-      <PermanentDarkMode />
       <ModeratorRoleOptionPatch />
       <Toaster />
+      <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
           <DashboardMotionProvider />
@@ -137,6 +132,7 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/showcase" element={<ShowcasePage />} />
+            <Route path="/delivery/:id" element={<PublicDeliveryPage />} />
             <Route path="/admin" element={<AdminOverviewRoute />} />
             <Route path="/admin/workflow" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowSuite /></ProtectedRoute>} />
             <Route path="/admin/tasks" element={<ProtectedRoute allowedRoles={["admin"]}><AdminTasks /></ProtectedRoute>} />
@@ -148,6 +144,12 @@ function App() {
             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
+            <Route path="/admin/pipeline" element={<ProtectedRoute allowedRoles={["admin"]}><ProjectPipeline /></ProtectedRoute>} />
+            <Route path="/admin/invoices" element={<ProtectedRoute allowedRoles={["admin"]}><InvoiceManager /></ProtectedRoute>} />
+            <Route path="/admin/onboarding" element={<ProtectedRoute allowedRoles={["admin"]}><ClientOnboarding /></ProtectedRoute>} />
+            <Route path="/admin/delivery" element={<ProtectedRoute allowedRoles={["admin"]}><DeliveryPage /></ProtectedRoute>} />
+            <Route path="/admin/referrals" element={<ProtectedRoute allowedRoles={["admin"]}><ReferralTracker /></ProtectedRoute>} />
+            <Route path="/admin/time-profit" element={<ProtectedRoute allowedRoles={["admin"]}><TimeProfitTracker /></ProtectedRoute>} />
 
             <Route path="/moderator" element={<Navigate to="/moderator/overview" replace />} />
             <Route path="/moderator/overview" element={<ModRoute><ModeratorCommandOverview /></ModRoute>} />
@@ -191,6 +193,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
+      </ThemeProvider>
     </div>
   );
 }

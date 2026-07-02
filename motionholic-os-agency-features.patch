@@ -1,0 +1,1207 @@
+From da755c3a84a9dde3b4e958d59debbe0010a2d2d7 Mon Sep 17 00:00:00 2001
+From: Ovi <ovi@motionholic.com>
+Date: Thu, 2 Jul 2026 19:53:42 +0000
+Subject: [PATCH] Add agency management suite: pipeline, invoices, onboarding,
+ delivery, referrals, time tracking + real theme toggle
+
+- Project Pipeline: kanban (Lead -> Scoping -> Active -> Revision -> Delivered -> Invoiced)
+- Invoice Manager: standalone invoicing with print output, mark-paid, overdue detection
+- Client Onboarding: 5-step guided intake flow
+- Delivery Pages: branded shareable client handoff pages (public /delivery/:id route + admin manager)
+- Referral Tracker: referral log + leaderboard + reward tracking
+- Time & Profit Tracker: session-based time logging with per-project effective hourly rate
+- ThemeContext: real dark/light toggle with localStorage persistence, replacing the old hardcoded PermanentDarkMode
+- New nav entries wired into admin sidebar
+---
+ frontend/src/App.js                           |  29 +--
+ frontend/src/components/Layout.jsx            |  34 +++-
+ frontend/src/context/ThemeContext.jsx         |  48 +++++
+ .../src/pages/agency/ClientOnboarding.jsx     | 148 +++++++++++++++
+ frontend/src/pages/agency/DeliveryPage.jsx    | 154 +++++++++++++++
+ frontend/src/pages/agency/InvoiceManager.jsx  | 152 +++++++++++++++
+ frontend/src/pages/agency/ProjectPipeline.jsx | 155 +++++++++++++++
+ frontend/src/pages/agency/ReferralTracker.jsx | 150 +++++++++++++++
+ .../src/pages/agency/TimeProfitTracker.jsx    | 178 ++++++++++++++++++
+ 9 files changed, 1031 insertions(+), 17 deletions(-)
+ create mode 100644 frontend/src/context/ThemeContext.jsx
+ create mode 100644 frontend/src/pages/agency/ClientOnboarding.jsx
+ create mode 100644 frontend/src/pages/agency/DeliveryPage.jsx
+ create mode 100644 frontend/src/pages/agency/InvoiceManager.jsx
+ create mode 100644 frontend/src/pages/agency/ProjectPipeline.jsx
+ create mode 100644 frontend/src/pages/agency/ReferralTracker.jsx
+ create mode 100644 frontend/src/pages/agency/TimeProfitTracker.jsx
+
+diff --git a/frontend/src/App.js b/frontend/src/App.js
+index 7654f33..bbfa432 100644
+--- a/frontend/src/App.js
++++ b/frontend/src/App.js
+@@ -1,8 +1,8 @@
+-import { useEffect } from "react";
+ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+ import "@/App.css";
+ 
+ import { AuthProvider, useAuth } from "./context/AuthContext";
++import { ThemeProvider } from "./context/ThemeContext";
+ import DashboardMotionProvider from "./components/DashboardMotionProvider";
+ import ModeratorRoleOptionPatch from "./components/ModeratorRoleOptionPatch";
+ import AdminFinanceAccessApprovalWidget from "./components/AdminFinanceAccessApprovalWidget";
+@@ -58,17 +58,12 @@ import GrowthPipeline from "./pages/growth/GrowthPipeline";
+ import GrowthMarketing from "./pages/growth/GrowthMarketing";
+ import GrowthSupport from "./pages/growth/GrowthSupport";
+ 
+-function PermanentDarkMode() {
+-  useEffect(() => {
+-    document.documentElement.setAttribute("data-mh-theme", "dark");
+-    try {
+-      localStorage.setItem("motionholic_os_theme", "dark");
+-    } catch {
+-      // Dark mode remains the permanent UI default.
+-    }
+-  }, []);
+-  return null;
+-}
++import ProjectPipeline from "./pages/agency/ProjectPipeline";
++import InvoiceManager from "./pages/agency/InvoiceManager";
++import ClientOnboarding from "./pages/agency/ClientOnboarding";
++import DeliveryPage, { PublicDeliveryPage } from "./pages/agency/DeliveryPage";
++import ReferralTracker from "./pages/agency/ReferralTracker";
++import TimeProfitTracker from "./pages/agency/TimeProfitTracker";
+ 
+ function LoadingScreen() {
+   return (
+@@ -124,9 +119,9 @@ function AdminOverviewRoute() {
+ function App() {
+   return (
+     <div className="App">
+-      <PermanentDarkMode />
+       <ModeratorRoleOptionPatch />
+       <Toaster />
++      <ThemeProvider>
+       <AuthProvider>
+         <BrowserRouter>
+           <DashboardMotionProvider />
+@@ -137,6 +132,7 @@ function App() {
+             <Route path="/register" element={<RegisterPage />} />
+             <Route path="/accept-invite" element={<AcceptInvitePage />} />
+             <Route path="/showcase" element={<ShowcasePage />} />
++            <Route path="/delivery/:id" element={<PublicDeliveryPage />} />
+             <Route path="/admin" element={<AdminOverviewRoute />} />
+             <Route path="/admin/workflow" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowSuite /></ProtectedRoute>} />
+             <Route path="/admin/tasks" element={<ProtectedRoute allowedRoles={["admin"]}><AdminTasks /></ProtectedRoute>} />
+@@ -148,6 +144,12 @@ function App() {
+             <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AdminCalendar /></ProtectedRoute>} />
+             <Route path="/admin/leaderboard" element={<ProtectedRoute allowedRoles={["admin"]}><Leaderboard allowed={["admin"]} /></ProtectedRoute>} />
+             <Route path="/admin/chat" element={<ProtectedRoute allowedRoles={["admin"]}><ChatPage mode="admin" /></ProtectedRoute>} />
++            <Route path="/admin/pipeline" element={<ProtectedRoute allowedRoles={["admin"]}><ProjectPipeline /></ProtectedRoute>} />
++            <Route path="/admin/invoices" element={<ProtectedRoute allowedRoles={["admin"]}><InvoiceManager /></ProtectedRoute>} />
++            <Route path="/admin/onboarding" element={<ProtectedRoute allowedRoles={["admin"]}><ClientOnboarding /></ProtectedRoute>} />
++            <Route path="/admin/delivery" element={<ProtectedRoute allowedRoles={["admin"]}><DeliveryPage /></ProtectedRoute>} />
++            <Route path="/admin/referrals" element={<ProtectedRoute allowedRoles={["admin"]}><ReferralTracker /></ProtectedRoute>} />
++            <Route path="/admin/time-profit" element={<ProtectedRoute allowedRoles={["admin"]}><TimeProfitTracker /></ProtectedRoute>} />
+ 
+             <Route path="/moderator" element={<Navigate to="/moderator/overview" replace />} />
+             <Route path="/moderator/overview" element={<ModRoute><ModeratorCommandOverview /></ModRoute>} />
+@@ -191,6 +193,7 @@ function App() {
+           </Routes>
+         </BrowserRouter>
+       </AuthProvider>
++      </ThemeProvider>
+     </div>
+   );
+ }
+diff --git a/frontend/src/components/Layout.jsx b/frontend/src/components/Layout.jsx
+index 3e17ea4..d5a378b 100644
+--- a/frontend/src/components/Layout.jsx
++++ b/frontend/src/components/Layout.jsx
+@@ -1,6 +1,7 @@
+ import { useCallback, useEffect, useState } from "react";
+ import { Link, NavLink, Navigate, useLocation } from "react-router-dom";
+ import { useAuth } from "../context/AuthContext";
++import { useTheme } from "../context/ThemeContext";
+ import { api } from "../lib/api";
+ 
+ const adminNav = [
+@@ -12,6 +13,12 @@ const adminNav = [
+   { label: "Team", path: "/admin/users", icon: "♧" },
+   { label: "Absences", path: "/admin/absences", icon: "✈" },
+   { label: "Payments", path: "/admin/payments", icon: "$" },
++  { label: "Project Pipeline", path: "/admin/pipeline", icon: "▤" },
++  { label: "Invoices", path: "/admin/invoices", icon: "▧" },
++  { label: "Client Onboarding", path: "/admin/onboarding", icon: "◪" },
++  { label: "Delivery", path: "/admin/delivery", icon: "➤" },
++  { label: "Referrals", path: "/admin/referrals", icon: "★" },
++  { label: "Time & Profit", path: "/admin/time-profit", icon: "◷" },
+   { label: "Calendar", path: "/admin/calendar", icon: "□" },
+   { label: "Leaderboard", path: "/admin/leaderboard", icon: "♕" },
+   { label: "Chat", path: "/admin/chat", icon: "♧" },
+@@ -333,6 +340,22 @@ function NotificationsPanel({ open, onClose, onUnreadChange, pushEnabled, permis
+   );
+ }
+ 
++function ThemeToggle() {
++  const { theme, toggleTheme } = useTheme();
++  const isDark = theme === "dark";
++  return (
++    <button
++      type="button"
++      onClick={toggleTheme}
++      className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white transition-colors"
++      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
++      aria-label="Toggle color theme"
++    >
++      {isDark ? "☾" : "☀"}
++    </button>
++  );
++}
++
+ function UserFooter({ user, unreadCount, onNotifications, onLogout }) {
+   return (
+     <div className="border-t border-white/10 p-4">
+@@ -347,10 +370,13 @@ function UserFooter({ user, unreadCount, onNotifications, onLogout }) {
+             <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.2em]">{user.role}</div>
+           </div>
+         </div>
+-        <button type="button" onClick={onNotifications} className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white" title="Notifications">
+-          🔔
+-          {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+-        </button>
++        <div className="flex items-center gap-1.5 shrink-0">
++          <ThemeToggle />
++          <button type="button" onClick={onNotifications} className="relative w-9 h-9 rounded-md border border-white/10 hover:bg-white/5 grid place-items-center text-zinc-400 hover:text-white" title="Notifications">
++            🔔
++            {unreadCount > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center font-medium">{unreadCount > 9 ? "9+" : unreadCount}</span>}
++          </button>
++        </div>
+       </div>
+       <button type="button" onClick={onLogout} className="mt-4 flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-all"><span>↳</span><span>Sign out</span></button>
+     </div>
+diff --git a/frontend/src/context/ThemeContext.jsx b/frontend/src/context/ThemeContext.jsx
+new file mode 100644
+index 0000000..d81903c
+--- /dev/null
++++ b/frontend/src/context/ThemeContext.jsx
+@@ -0,0 +1,48 @@
++import { createContext, useCallback, useContext, useEffect, useState } from "react";
++
++const ThemeContext = createContext(null);
++
++// Reuses the storage key already established in App.js's old PermanentDarkMode
++// so any existing stored preference on a user's browser carries over cleanly.
++const STORAGE_KEY = "motionholic_os_theme";
++
++function getInitialTheme() {
++  if (typeof window === "undefined") return "dark";
++  try {
++    const stored = localStorage.getItem(STORAGE_KEY);
++    if (stored === "light" || stored === "dark") return stored;
++  } catch {
++    // localStorage unavailable — fall through to system preference
++  }
++  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
++  return "dark";
++}
++
++export function ThemeProvider({ children }) {
++  const [theme, setTheme] = useState(getInitialTheme);
++
++  useEffect(() => {
++    document.documentElement.setAttribute("data-mh-theme", theme);
++    try {
++      localStorage.setItem(STORAGE_KEY, theme);
++    } catch {
++      // ignore write failures (private browsing etc.)
++    }
++  }, [theme]);
++
++  const toggleTheme = useCallback(() => {
++    setTheme((t) => (t === "dark" ? "light" : "dark"));
++  }, []);
++
++  return (
++    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
++      {children}
++    </ThemeContext.Provider>
++  );
++}
++
++export function useTheme() {
++  const ctx = useContext(ThemeContext);
++  if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
++  return ctx;
++}
+diff --git a/frontend/src/pages/agency/ClientOnboarding.jsx b/frontend/src/pages/agency/ClientOnboarding.jsx
+new file mode 100644
+index 0000000..6fb9116
+--- /dev/null
++++ b/frontend/src/pages/agency/ClientOnboarding.jsx
+@@ -0,0 +1,148 @@
++import { useState } from "react";
++import Layout, { PageHeader, Badge } from "../../components/Layout";
++
++const STORE_KEY = "motionholic_os_onboarding_v1";
++const STEPS = ["Brand", "Goals", "Style", "Logistics", "Review"];
++
++function loadStore() {
++  try {
++    const raw = JSON.parse(localStorage.getItem(STORE_KEY));
++    return Array.isArray(raw) ? raw : [];
++  } catch {
++    return [];
++  }
++}
++
++function saveStore(entries) {
++  localStorage.setItem(STORE_KEY, JSON.stringify(entries));
++}
++
++const emptyForm = {
++  brand_name: "",
++  industry: "",
++  website: "",
++  video_goals: "",
++  target_platforms: "",
++  reference_links: "",
++  brand_voice: "",
++  turnaround: "",
++  monthly_volume: "",
++  contact_email: "",
++  notes: "",
++};
++
++export default function ClientOnboarding() {
++  const [entries, setEntries] = useState(loadStore);
++  const [step, setStep] = useState(0);
++  const [form, setForm] = useState(emptyForm);
++  const [creating, setCreating] = useState(false);
++
++  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
++
++  const finish = () => {
++    const entry = { id: `client_${Date.now()}`, ...form, created_at: new Date().toISOString() };
++    const next = [entry, ...entries];
++    setEntries(next);
++    saveStore(next);
++    setForm(emptyForm);
++    setStep(0);
++    setCreating(false);
++  };
++
++  const removeEntry = (id) => {
++    const next = entries.filter((e) => e.id !== id);
++    setEntries(next);
++    saveStore(next);
++  };
++
++  return (
++    <Layout allowed={["admin"]}>
++      <PageHeader label="Admin / Client Onboarding" title="Client Onboarding" subtitle="Guided 5-step intake to capture a new client's brand, goals, and logistics before kickoff.">
++        <button type="button" onClick={() => { setCreating((v) => !v); setStep(0); }} className="px-3 py-2 rounded-md bg-[#0051FF] text-white text-sm font-medium hover:opacity-90">
++          {creating ? "Cancel" : "+ Onboard client"}
++        </button>
++      </PageHeader>
++
++      {creating && (
++        <div className="mb-6 border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-6">
++          <div className="flex items-center gap-2 mb-5">
++            {STEPS.map((s, i) => (
++              <div key={s} className="flex items-center gap-2">
++                <div className={`w-7 h-7 rounded-full grid place-items-center text-xs font-mono ${i === step ? "bg-[#0051FF] text-white" : i < step ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-500"}`}>
++                  {i < step ? "✓" : i + 1}
++                </div>
++                <span className={`text-xs hidden sm:inline ${i === step ? "text-white" : "text-zinc-500"}`}>{s}</span>
++                {i < STEPS.length - 1 && <div className="w-4 sm:w-8 h-px bg-white/10" />}
++              </div>
++            ))}
++          </div>
++
++          {step === 0 && (
++            <div className="grid sm:grid-cols-2 gap-3">
++              <input className="input-field" placeholder="Brand / company name" value={form.brand_name} onChange={set("brand_name")} />
++              <input className="input-field" placeholder="Industry" value={form.industry} onChange={set("industry")} />
++              <input className="input-field sm:col-span-2" placeholder="Website URL" value={form.website} onChange={set("website")} />
++            </div>
++          )}
++          {step === 1 && (
++            <div className="grid gap-3">
++              <textarea className="input-field min-h-[90px]" placeholder="Video goals — what are they trying to achieve?" value={form.video_goals} onChange={set("video_goals")} />
++              <input className="input-field" placeholder="Target platforms (e.g. Instagram, TikTok, YouTube)" value={form.target_platforms} onChange={set("target_platforms")} />
++            </div>
++          )}
++          {step === 2 && (
++            <div className="grid gap-3">
++              <input className="input-field" placeholder="Reference links (comma separated)" value={form.reference_links} onChange={set("reference_links")} />
++              <textarea className="input-field min-h-[90px]" placeholder="Brand voice / tone / editing style notes" value={form.brand_voice} onChange={set("brand_voice")} />
++            </div>
++          )}
++          {step === 3 && (
++            <div className="grid sm:grid-cols-2 gap-3">
++              <input className="input-field" placeholder="Expected turnaround (e.g. 3 days)" value={form.turnaround} onChange={set("turnaround")} />
++              <input className="input-field" placeholder="Monthly video volume" value={form.monthly_volume} onChange={set("monthly_volume")} />
++              <input className="input-field sm:col-span-2" placeholder="Contact email" value={form.contact_email} onChange={set("contact_email")} />
++            </div>
++          )}
++          {step === 4 && (
++            <div className="grid gap-2 text-sm">
++              <div><span className="text-zinc-500">Brand:</span> {form.brand_name || "—"} ({form.industry || "—"})</div>
++              <div><span className="text-zinc-500">Goals:</span> {form.video_goals || "—"}</div>
++              <div><span className="text-zinc-500">Platforms:</span> {form.target_platforms || "—"}</div>
++              <div><span className="text-zinc-500">Turnaround:</span> {form.turnaround || "—"} · <span className="text-zinc-500">Volume:</span> {form.monthly_volume || "—"}</div>
++              <div><span className="text-zinc-500">Contact:</span> {form.contact_email || "—"}</div>
++              <textarea className="input-field min-h-[70px] mt-2" placeholder="Any final notes before kickoff" value={form.notes} onChange={set("notes")} />
++            </div>
++          )}
++
++          <div className="flex items-center justify-between mt-5">
++            <button type="button" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))} className="px-3 py-2 rounded-md border border-white/10 text-sm disabled:opacity-30">Back</button>
++            {step < STEPS.length - 1 ? (
++              <button type="button" onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))} className="px-3 py-2 rounded-md bg-white/10 hover:bg-white/15 text-sm font-medium">Next</button>
++            ) : (
++              <button type="button" onClick={finish} className="px-3 py-2 rounded-md bg-[#0051FF] text-white text-sm font-medium hover:opacity-90">Complete onboarding</button>
++            )}
++          </div>
++        </div>
++      )}
++
++      <div className="grid gap-3">
++        {entries.map((c) => (
++          <div key={c.id} className="border border-white/10 rounded-md bg-zinc-900/20 p-4 flex items-start justify-between gap-4">
++            <div className="min-w-0">
++              <div className="flex items-center gap-2">
++                <div className="text-sm font-medium">{c.brand_name || "Unnamed client"}</div>
++                {c.industry && <Badge>{c.industry}</Badge>}
++              </div>
++              <div className="text-xs text-zinc-500 mt-1 truncate">{c.video_goals || "No goals recorded"}</div>
++              <div className="text-xs text-zinc-600 mt-1">{c.target_platforms} {c.turnaround && `· ${c.turnaround} turnaround`}</div>
++            </div>
++            <button type="button" onClick={() => removeEntry(c.id)} className="text-xs text-zinc-600 hover:text-red-400 shrink-0">Delete</button>
++          </div>
++        ))}
++        {entries.length === 0 && !creating && <div className="text-sm text-zinc-600 text-center py-10 border border-dashed border-white/10 rounded-md">No clients onboarded yet.</div>}
++      </div>
++
++      <style>{`.input-field { background: rgba(24,24,27,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; }`}</style>
++    </Layout>
++  );
++}
+diff --git a/frontend/src/pages/agency/DeliveryPage.jsx b/frontend/src/pages/agency/DeliveryPage.jsx
+new file mode 100644
+index 0000000..862a94c
+--- /dev/null
++++ b/frontend/src/pages/agency/DeliveryPage.jsx
+@@ -0,0 +1,154 @@
++import { useState } from "react";
++import { useParams } from "react-router-dom";
++import Layout, { PageHeader, Badge } from "../../components/Layout";
++
++const STORE_KEY = "motionholic_os_deliveries_v1";
++const STATUSES = ["Draft", "Sent", "Viewed", "Approved"];
++
++function loadStore() {
++  try {
++    const raw = JSON.parse(localStorage.getItem(STORE_KEY));
++    return Array.isArray(raw) ? raw : [];
++  } catch {
++    return [];
++  }
++}
++
++function saveStore(deliveries) {
++  localStorage.setItem(STORE_KEY, JSON.stringify(deliveries));
++}
++
++const emptyForm = { client: "", project: "", video_url: "", message: "" };
++
++export default function DeliveryPage() {
++  const [deliveries, setDeliveries] = useState(loadStore);
++  const [form, setForm] = useState(emptyForm);
++  const [showForm, setShowForm] = useState(false);
++  const [preview, setPreview] = useState(null);
++
++  const update = (next) => {
++    setDeliveries(next);
++    saveStore(next);
++  };
++
++  const createDelivery = () => {
++    if (!form.client.trim() || !form.video_url.trim()) return;
++    const delivery = { id: `del_${Date.now()}`, ...form, status: "Draft", created_at: new Date().toISOString() };
++    update([delivery, ...deliveries]);
++    setForm(emptyForm);
++    setShowForm(false);
++  };
++
++  const setStatus = (id, status) => {
++    update(deliveries.map((d) => (d.id === id ? { ...d, status } : d)));
++  };
++
++  const removeDelivery = (id) => {
++    update(deliveries.filter((d) => d.id !== id));
++  };
++
++  const shareUrl = (id) => `${window.location.origin}/delivery/${id}`;
++
++  return (
++    <Layout allowed={["admin"]}>
++      <PageHeader label="Admin / Delivery" title="Delivery Pages" subtitle="Create branded, shareable handoff pages for finished client work — send the link, track when it's viewed and approved.">
++        <button type="button" onClick={() => setShowForm((v) => !v)} className="px-3 py-2 rounded-md bg-[#0051FF] text-white text-sm font-medium hover:opacity-90">
++          {showForm ? "Cancel" : "+ New delivery"}
++        </button>
++      </PageHeader>
++
++      {showForm && (
++        <div className="mb-6 border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
++          <div className="grid sm:grid-cols-2 gap-3">
++            <input className="input-field" placeholder="Client name" value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
++            <input className="input-field" placeholder="Project title" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} />
++            <input className="input-field sm:col-span-2" placeholder="Final video URL (YouTube, Drive, etc.)" value={form.video_url} onChange={(e) => setForm({ ...form, video_url: e.target.value })} />
++            <textarea className="input-field sm:col-span-2 min-h-[70px]" placeholder="Message to client (optional)" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
++          </div>
++          <button type="button" onClick={createDelivery} className="mt-3 px-3 py-2 rounded-md bg-white/10 hover:bg-white/15 text-sm font-medium">Create delivery page</button>
++        </div>
++      )}
++
++      <div className="grid gap-3">
++        {deliveries.map((d) => (
++          <div key={d.id} className="border border-white/10 rounded-md bg-zinc-900/20 p-4">
++            <div className="flex items-start justify-between gap-4">
++              <div className="min-w-0">
++                <div className="flex items-center gap-2">
++                  <div className="text-sm font-medium">{d.project || "Untitled delivery"}</div>
++                  <Badge tone={d.status === "Approved" ? "good" : d.status === "Viewed" ? "blue" : d.status === "Sent" ? "warn" : "default"}>{d.status}</Badge>
++                </div>
++                <div className="text-xs text-zinc-500 mt-1">{d.client}</div>
++                <div className="text-xs text-zinc-600 mt-1 font-mono truncate">{shareUrl(d.id)}</div>
++              </div>
++              <div className="flex items-center gap-2 shrink-0">
++                <select className="text-xs bg-zinc-950 border border-white/10 rounded-md px-1.5 py-1" value={d.status} onChange={(e) => setStatus(d.id, e.target.value)}>
++                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
++                </select>
++                <button type="button" onClick={() => setPreview(d)} className="text-xs text-blue-400 hover:underline">Preview</button>
++                <button type="button" onClick={() => navigator.clipboard?.writeText(shareUrl(d.id))} className="text-xs text-zinc-400 hover:underline">Copy link</button>
++                <button type="button" onClick={() => removeDelivery(d.id)} className="text-xs text-zinc-600 hover:text-red-400">Delete</button>
++              </div>
++            </div>
++          </div>
++        ))}
++        {deliveries.length === 0 && <div className="text-sm text-zinc-600 text-center py-10 border border-dashed border-white/10 rounded-md">No delivery pages yet.</div>}
++      </div>
++
++      {preview && (
++        <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center p-4" onClick={() => setPreview(null)}>
++          <div className="bg-zinc-950 border border-white/10 rounded-lg max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
++            <DeliveryContent delivery={preview} />
++            <div className="p-4 border-t border-white/10 text-right">
++              <button type="button" onClick={() => setPreview(null)} className="px-3 py-1.5 rounded-md border border-white/10 text-sm">Close</button>
++            </div>
++          </div>
++        </div>
++      )}
++
++      <style>{`.input-field { background: rgba(24,24,27,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; }`}</style>
++    </Layout>
++  );
++}
++
++function DeliveryContent({ delivery }) {
++  return (
++    <div className="p-6 lg:p-10">
++      <div className="text-xs font-mono uppercase tracking-[0.25em] text-[#0051FF] mb-2">Motionholic — Final Delivery</div>
++      <h1 className="text-2xl font-semibold">{delivery.project || "Your finished video"}</h1>
++      <p className="text-sm text-zinc-400 mt-1">Prepared for {delivery.client}</p>
++      {delivery.video_url && (
++        <div className="mt-6 aspect-video rounded-md overflow-hidden border border-white/10 bg-zinc-900 grid place-items-center">
++          <a href={delivery.video_url} target="_blank" rel="noreferrer" className="text-[#0051FF] text-sm underline break-all px-4">{delivery.video_url}</a>
++        </div>
++      )}
++      {delivery.message && <p className="mt-6 text-sm text-zinc-300 whitespace-pre-wrap">{delivery.message}</p>}
++    </div>
++  );
++}
++
++// Unauthenticated, standalone page for clients — no sidebar / Layout wrapper.
++export function PublicDeliveryPage() {
++  const { id } = useParams();
++  const deliveries = loadStore();
++  const delivery = deliveries.find((d) => d.id === id);
++
++  if (!delivery) {
++    return (
++      <div className="min-h-screen bg-zinc-950 text-white grid place-items-center px-6">
++        <div className="text-center">
++          <div className="text-lg font-medium">Delivery not found</div>
++          <p className="text-sm text-zinc-500 mt-2">This link may have expired or the delivery was removed.</p>
++        </div>
++      </div>
++    );
++  }
++
++  return (
++    <div className="min-h-screen bg-zinc-950 text-white">
++      <div className="max-w-2xl mx-auto">
++        <DeliveryContent delivery={delivery} />
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend/src/pages/agency/InvoiceManager.jsx b/frontend/src/pages/agency/InvoiceManager.jsx
+new file mode 100644
+index 0000000..d4300de
+--- /dev/null
++++ b/frontend/src/pages/agency/InvoiceManager.jsx
+@@ -0,0 +1,152 @@
++import { useMemo, useState } from "react";
++import Layout, { PageHeader, Badge, MetricCard } from "../../components/Layout";
++
++const STORE_KEY = "motionholic_os_invoices_v1";
++const STATUSES = ["Unpaid", "Paid", "Overdue"];
++
++function loadStore() {
++  try {
++    const raw = JSON.parse(localStorage.getItem(STORE_KEY));
++    return Array.isArray(raw) ? raw : [];
++  } catch {
++    return [];
++  }
++}
++
++function saveStore(invoices) {
++  localStorage.setItem(STORE_KEY, JSON.stringify(invoices));
++}
++
++function money(v) {
++  return `€${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
++}
++
++function isOverdue(invoice) {
++  if (invoice.status === "Paid") return false;
++  if (!invoice.due_date) return false;
++  return new Date(invoice.due_date) < new Date();
++}
++
++const emptyForm = { client: "", project: "", amount: "", due_date: "", notes: "" };
++
++export default function InvoiceManager() {
++  const [invoices, setInvoices] = useState(loadStore);
++  const [form, setForm] = useState(emptyForm);
++  const [showForm, setShowForm] = useState(false);
++
++  const update = (next) => {
++    setInvoices(next);
++    saveStore(next);
++  };
++
++  const createInvoice = () => {
++    if (!form.client.trim() || !form.amount) return;
++    const invoice = {
++      id: `inv_${Date.now()}`,
++      number: `MH-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, "0")}`,
++      ...form,
++      amount: Number(form.amount),
++      status: "Unpaid",
++      created_at: new Date().toISOString(),
++    };
++    update([invoice, ...invoices]);
++    setForm(emptyForm);
++    setShowForm(false);
++  };
++
++  const markPaid = (id) => {
++    update(invoices.map((i) => (i.id === id ? { ...i, status: "Paid", paid_at: new Date().toISOString() } : i)));
++  };
++
++  const removeInvoice = (id) => {
++    update(invoices.filter((i) => i.id !== id));
++  };
++
++  const printInvoice = (invoice) => {
++    const win = window.open("", "_blank");
++    if (!win) return;
++    win.document.write(`<html><head><title>${invoice.number}</title><style>body{font-family:Arial;padding:40px;color:#111}h1{color:#0051FF}.box{border:1px solid #ddd;padding:20px;border-radius:12px;margin:16px 0}</style></head><body><h1>Motionholic Invoice</h1><div class="box"><strong>Invoice:</strong> ${invoice.number}<br/><strong>Client:</strong> ${invoice.client}<br/><strong>Project:</strong> ${invoice.project || "—"}<br/><strong>Amount:</strong> ${money(invoice.amount)}<br/><strong>Status:</strong> ${invoice.status}<br/><strong>Due:</strong> ${invoice.due_date || "—"}</div><p>${invoice.notes || ""}</p><script>window.print()</script></body></html>`);
++    win.document.close();
++  };
++
++  const rows = useMemo(
++    () => invoices.map((i) => ({ ...i, status: i.status === "Paid" ? "Paid" : isOverdue(i) ? "Overdue" : "Unpaid" })),
++    [invoices]
++  );
++
++  const totals = useMemo(() => {
++    const paid = rows.filter((r) => r.status === "Paid").reduce((s, r) => s + r.amount, 0);
++    const unpaid = rows.filter((r) => r.status !== "Paid").reduce((s, r) => s + r.amount, 0);
++    const overdue = rows.filter((r) => r.status === "Overdue").reduce((s, r) => s + r.amount, 0);
++    return { paid, unpaid, overdue };
++  }, [rows]);
++
++  return (
++    <Layout allowed={["admin"]}>
++      <PageHeader label="Admin / Invoices" title="Invoice Manager" subtitle="Create, send, and track client invoices — separate from project finance in Workflow Suite.">
++        <button type="button" onClick={() => setShowForm((v) => !v)} className="px-3 py-2 rounded-md bg-[#0051FF] text-white text-sm font-medium hover:opacity-90">
++          {showForm ? "Cancel" : "+ New invoice"}
++        </button>
++      </PageHeader>
++
++      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
++        <MetricCard label="Paid" value={money(totals.paid)} tone="good" />
++        <MetricCard label="Unpaid" value={money(totals.unpaid)} tone="warn" />
++        <MetricCard label="Overdue" value={money(totals.overdue)} tone="bad" />
++      </div>
++
++      {showForm && (
++        <div className="mb-6 border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
++          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
++            <input className="input-field" placeholder="Client name" value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
++            <input className="input-field" placeholder="Project" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} />
++            <input className="input-field" type="number" placeholder="Amount (€)" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
++            <input className="input-field" type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
++            <input className="input-field lg:col-span-2" placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
++          </div>
++          <button type="button" onClick={createInvoice} className="mt-3 px-3 py-2 rounded-md bg-white/10 hover:bg-white/15 text-sm font-medium">Create invoice</button>
++        </div>
++      )}
++
++      <div className="border border-white/10 rounded-md bg-zinc-900/20 overflow-x-auto">
++        <table className="w-full text-sm">
++          <thead className="text-zinc-500 text-xs uppercase tracking-wide">
++            <tr>
++              <th className="text-left p-3">Invoice</th>
++              <th className="text-left p-3">Client</th>
++              <th className="text-left p-3">Project</th>
++              <th className="text-left p-3">Amount</th>
++              <th className="text-left p-3">Due</th>
++              <th className="text-left p-3">Status</th>
++              <th className="text-left p-3">Actions</th>
++            </tr>
++          </thead>
++          <tbody>
++            {rows.map((inv) => (
++              <tr key={inv.id} className="border-t border-white/5">
++                <td className="p-3 font-mono text-xs">{inv.number}</td>
++                <td className="p-3">{inv.client}</td>
++                <td className="p-3 text-zinc-400">{inv.project || "—"}</td>
++                <td className="p-3 font-mono">{money(inv.amount)}</td>
++                <td className="p-3 text-zinc-400">{inv.due_date || "—"}</td>
++                <td className="p-3"><Badge tone={inv.status === "Paid" ? "good" : inv.status === "Overdue" ? "bad" : "warn"}>{inv.status}</Badge></td>
++                <td className="p-3">
++                  <div className="flex items-center gap-2">
++                    {inv.status !== "Paid" && <button type="button" onClick={() => markPaid(inv.id)} className="text-xs text-emerald-400 hover:underline">Mark paid</button>}
++                    <button type="button" onClick={() => printInvoice(inv)} className="text-xs text-blue-400 hover:underline">Print</button>
++                    <button type="button" onClick={() => removeInvoice(inv.id)} className="text-xs text-zinc-600 hover:text-red-400">Delete</button>
++                  </div>
++                </td>
++              </tr>
++            ))}
++            {rows.length === 0 && (
++              <tr><td colSpan={7} className="p-6 text-center text-zinc-600 text-sm">No invoices yet.</td></tr>
++            )}
++          </tbody>
++        </table>
++      </div>
++
++      <style>{`.input-field { background: rgba(24,24,27,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; font-size: 14px; }`}</style>
++    </Layout>
++  );
++}
+diff --git a/frontend/src/pages/agency/ProjectPipeline.jsx b/frontend/src/pages/agency/ProjectPipeline.jsx
+new file mode 100644
+index 0000000..df89657
+--- /dev/null
++++ b/frontend/src/pages/agency/ProjectPipeline.jsx
+@@ -0,0 +1,155 @@
++import { useMemo, useState } from "react";
++import Layout, { PageHeader, Badge, MetricCard } from "../../components/Layout";
++
++const STORE_KEY = "motionholic_os_pipeline_v1";
++const STAGES = ["Lead", "Scoping", "Active", "Revision", "Delivered", "Invoiced"];
++const STAGE_TONE = { Lead: "default", Scoping: "blue", Active: "blue", Revision: "warn", Delivered: "good", Invoiced: "good" };
++
++function loadStore() {
++  try {
++    const raw = JSON.parse(localStorage.getItem(STORE_KEY));
++    return Array.isArray(raw) ? raw : [];
++  } catch {
++    return [];
++  }
++}
++
++function saveStore(projects) {
++  localStorage.setItem(STORE_KEY, JSON.stringify(projects));
++}
++
++function makeId() {
++  return `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
++}
++
++const emptyForm = { client: "", title: "", value: "", deadline: "", stage: "Lead" };
++
++export default function ProjectPipeline() {
++  const [projects, setProjects] = useState(loadStore);
++  const [form, setForm] = useState(emptyForm);
++  const [showForm, setShowForm] = useState(false);
++  const [dragId, setDragId] = useState(null);
++
++  const update = (next) => {
++    setProjects(next);
++    saveStore(next);
++  };
++
++  const addProject = () => {
++    if (!form.client.trim() || !form.title.trim()) return;
++    const project = { id: makeId(), ...form, value: Number(form.value || 0), created_at: new Date().toISOString() };
++    update([project, ...projects]);
++    setForm(emptyForm);
++    setShowForm(false);
++  };
++
++  const moveStage = (id, stage) => {
++    update(projects.map((p) => (p.id === id ? { ...p, stage } : p)));
++  };
++
++  const removeProject = (id) => {
++    update(projects.filter((p) => p.id !== id));
++  };
++
++  const grouped = useMemo(() => {
++    const g = Object.fromEntries(STAGES.map((s) => [s, []]));
++    projects.forEach((p) => {
++      (g[p.stage] || g.Lead).push(p);
++    });
++    return g;
++  }, [projects]);
++
++  const totals = useMemo(() => {
++    const active = projects.filter((p) => !["Invoiced"].includes(p.stage));
++    const pipelineValue = active.reduce((s, p) => s + Number(p.value || 0), 0);
++    const invoicedValue = projects.filter((p) => p.stage === "Invoiced").reduce((s, p) => s + Number(p.value || 0), 0);
++    return { total: projects.length, active: active.length, pipelineValue, invoicedValue };
++  }, [projects]);
++
++  return (
++    <Layout allowed={["admin"]}>
++      <PageHeader
++        label="Admin / Project Pipeline"
++        title="Project Pipeline"
++        subtitle="Track active client work from first contact through invoicing — drag cards between stages or use the stage buttons."
++      >
++        <button
++          type="button"
++          onClick={() => setShowForm((v) => !v)}
++          className="px-3 py-2 rounded-md bg-[#0051FF] text-white text-sm font-medium hover:opacity-90"
++        >
++          {showForm ? "Cancel" : "+ New project"}
++        </button>
++      </PageHeader>
++
++      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
++        <MetricCard label="Total Projects" value={totals.total} />
++        <MetricCard label="In Progress" value={totals.active} tone="blue" />
++        <MetricCard label="Pipeline Value" value={`€${totals.pipelineValue.toLocaleString()}`} tone="warn" />
++        <MetricCard label="Invoiced Value" value={`€${totals.invoicedValue.toLocaleString()}`} tone="good" />
++      </div>
++
++      {showForm && (
++        <div className="mb-6 border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
++          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
++            <input className="input-field" placeholder="Client name" value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
++            <input className="input-field" placeholder="Project title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
++            <input className="input-field" type="number" placeholder="Value (€)" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
++            <input className="input-field" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
++            <button type="button" onClick={addProject} className="px-3 py-2 rounded-md bg-white/10 hover:bg-white/15 text-sm font-medium">Add to pipeline</button>
++          </div>
++        </div>
++      )}
++
++      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
++        {STAGES.map((stage) => (
++          <div
++            key={stage}
++            data-testid={`kanban-column-${stage.toLowerCase()}`}
++            className="border border-white/10 rounded-md bg-zinc-900/20 p-3 min-h-[220px]"
++            onDragOver={(e) => e.preventDefault()}
++            onDrop={() => {
++              if (dragId) moveStage(dragId, stage);
++              setDragId(null);
++            }}
++          >
++            <div className="flex items-center justify-between mb-3">
++              <span className="text-xs font-mono uppercase tracking-[0.15em] text-zinc-500">{stage}</span>
++              <Badge tone={STAGE_TONE[stage]}>{grouped[stage].length}</Badge>
++            </div>
++            <div className="flex flex-col gap-2">
++              {grouped[stage].map((p) => (
++                <div
++                  key={p.id}
++                  draggable
++                  onDragStart={() => setDragId(p.id)}
++                  className="border border-white/10 rounded-md bg-zinc-900/40 p-3 cursor-grab active:cursor-grabbing"
++                >
++                  <div className="text-sm font-medium truncate">{p.title}</div>
++                  <div className="text-xs text-zinc-500 mt-0.5 truncate">{p.client}</div>
++                  <div className="flex items-center justify-between mt-2">
++                    <span className="text-xs font-mono text-zinc-400">€{Number(p.value || 0).toLocaleString()}</span>
++                    {p.deadline && <span className="text-[10px] text-zinc-500">{p.deadline}</span>}
++                  </div>
++                  <div className="flex items-center gap-1.5 mt-2">
++                    <select
++                      className="flex-1 text-xs bg-zinc-950 border border-white/10 rounded-md px-1.5 py-1"
++                      value={p.stage}
++                      onChange={(e) => moveStage(p.id, e.target.value)}
++                    >
++                      {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
++                    </select>
++                    <button type="button" onClick={() => removeProject(p.id)} className="text-zinc-600 hover:text-red-400 text-xs px-1.5" title="Remove">×</button>
++                  </div>
++                </div>
++              ))}
++              {grouped[stage].length === 0 && <div className="text-xs text-zinc-600 text-center py-6">No projects</div>}
++            </div>
++          </div>
++        ))}
++      </div>
++
++      <style>{`.input-field { background: rgba(24,24,27,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; font-size: 14px; }`}</style>
++    </Layout>
++  );
++}
+diff --git a/frontend/src/pages/agency/ReferralTracker.jsx b/frontend/src/pages/agency/ReferralTracker.jsx
+new file mode 100644
+index 0000000..dbf76fa
+--- /dev/null
++++ b/frontend/src/pages/agency/ReferralTracker.jsx
+@@ -0,0 +1,150 @@
++import { useMemo, useState } from "react";
++import Layout, { PageHeader, Badge, MetricCard } from "../../components/Layout";
++
++const STORE_KEY = "motionholic_os_referrals_v1";
++const STATUSES = ["Pending", "Converted", "Rewarded"];
++
++function loadStore() {
++  try {
++    const raw = JSON.parse(localStorage.getItem(STORE_KEY));
++    return Array.isArray(raw) ? raw : [];
++  } catch {
++    return [];
++  }
++}
++
++function saveStore(referrals) {
++  localStorage.setItem(STORE_KEY, JSON.stringify(referrals));
++}
++
++const emptyForm = { referrer: "", referred_client: "", value: "", reward: "" };
++
++export default function ReferralTracker() {
++  const [referrals, setReferrals] = useState(loadStore);
++  const [form, setForm] = useState(emptyForm);
++  const [showForm, setShowForm] = useState(false);
++
++  const update = (next) => {
++    setReferrals(next);
++    saveStore(next);
++  };
++
++  const addReferral = () => {
++    if (!form.referrer.trim() || !form.referred_client.trim()) return;
++    const referral = { id: `ref_${Date.now()}`, ...form, value: Number(form.value || 0), status: "Pending", created_at: new Date().toISOString() };
++    update([referral, ...referrals]);
++    setForm(emptyForm);
++    setShowForm(false);
++  };
++
++  const setStatus = (id, status) => {
++    update(referrals.map((r) => (r.id === id ? { ...r, status } : r)));
++  };
++
++  const removeReferral = (id) => {
++    update(referrals.filter((r) => r.id !== id));
++  };
++
++  const leaderboard = useMemo(() => {
++    const byReferrer = {};
++    referrals.forEach((r) => {
++      const key = r.referrer.trim();
++      if (!byReferrer[key]) byReferrer[key] = { referrer: key, count: 0, converted: 0, value: 0 };
++      byReferrer[key].count += 1;
++      if (r.status !== "Pending") byReferrer[key].converted += 1;
++      if (r.status === "Converted" || r.status === "Rewarded") byReferrer[key].value += Number(r.value || 0);
++    });
++    return Object.values(byReferrer).sort((a, b) => b.value - a.value || b.converted - a.converted);
++  }, [referrals]);
++
++  const totals = useMemo(() => {
++    const converted = referrals.filter((r) => r.status !== "Pending");
++    const value = converted.reduce((s, r) => s + Number(r.value || 0), 0);
++    const pendingRewards = referrals.filter((r) => r.status === "Converted").length;
++    return { total: referrals.length, converted: converted.length, value, pendingRewards };
++  }, [referrals]);
++
++  return (
++    <Layout allowed={["admin"]}>
++      <PageHeader label="Admin / Referrals" title="Referral Tracker" subtitle="Log who's sending clients your way, track conversions, and see who's earned a reward.">
++        <button type="button" onClick={() => setShowForm((v) => !v)} className="px-3 py-2 rounded-md bg-[#0051FF] text-white text-sm font-medium hover:opacity-90">
++          {showForm ? "Cancel" : "+ Log referral"}
++        </button>
++      </PageHeader>
++
++      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
++        <MetricCard label="Total Referrals" value={totals.total} />
++        <MetricCard label="Converted" value={totals.converted} tone="good" />
++        <MetricCard label="Revenue from Referrals" value={`€${totals.value.toLocaleString()}`} tone="blue" />
++        <MetricCard label="Rewards Owed" value={totals.pendingRewards} tone="warn" />
++      </div>
++
++      {showForm && (
++        <div className="mb-6 border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
++          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
++            <input className="input-field" placeholder="Referrer name" value={form.referrer} onChange={(e) => setForm({ ...form, referrer: e.target.value })} />
++            <input className="input-field" placeholder="Referred client" value={form.referred_client} onChange={(e) => setForm({ ...form, referred_client: e.target.value })} />
++            <input className="input-field" type="number" placeholder="Project value (€)" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
++            <input className="input-field" placeholder="Reward (e.g. 10% cash)" value={form.reward} onChange={(e) => setForm({ ...form, reward: e.target.value })} />
++          </div>
++          <button type="button" onClick={addReferral} className="mt-3 px-3 py-2 rounded-md bg-white/10 hover:bg-white/15 text-sm font-medium">Log referral</button>
++        </div>
++      )}
++
++      <div className="grid lg:grid-cols-3 gap-4">
++        <div className="lg:col-span-2 border border-white/10 rounded-md bg-zinc-900/20 overflow-x-auto">
++          <table className="w-full text-sm">
++            <thead className="text-zinc-500 text-xs uppercase tracking-wide">
++              <tr>
++                <th className="text-left p-3">Referrer</th>
++                <th className="text-left p-3">Referred</th>
++                <th className="text-left p-3">Value</th>
++                <th className="text-left p-3">Reward</th>
++                <th className="text-left p-3">Status</th>
++                <th className="text-left p-3"></th>
++              </tr>
++            </thead>
++            <tbody>
++              {referrals.map((r) => (
++                <tr key={r.id} className="border-t border-white/5">
++                  <td className="p-3">{r.referrer}</td>
++                  <td className="p-3 text-zinc-400">{r.referred_client}</td>
++                  <td className="p-3 font-mono">€{Number(r.value || 0).toLocaleString()}</td>
++                  <td className="p-3 text-zinc-400">{r.reward || "—"}</td>
++                  <td className="p-3">
++                    <select className="text-xs bg-zinc-950 border border-white/10 rounded-md px-1.5 py-1" value={r.status} onChange={(e) => setStatus(r.id, e.target.value)}>
++                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
++                    </select>
++                  </td>
++                  <td className="p-3"><button type="button" onClick={() => removeReferral(r.id)} className="text-xs text-zinc-600 hover:text-red-400">Delete</button></td>
++                </tr>
++              ))}
++              {referrals.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-zinc-600 text-sm">No referrals logged yet.</td></tr>}
++            </tbody>
++          </table>
++        </div>
++
++        <div className="border border-white/10 rounded-md bg-zinc-900/20 p-4">
++          <div className="text-xs font-mono uppercase tracking-[0.15em] text-zinc-500 mb-3">Leaderboard</div>
++          <div className="flex flex-col gap-2">
++            {leaderboard.map((l, i) => (
++              <div key={l.referrer} className="flex items-center justify-between text-sm">
++                <div className="flex items-center gap-2 min-w-0">
++                  <span className="text-xs font-mono text-zinc-500 w-4">{i + 1}</span>
++                  <span className="truncate">{l.referrer}</span>
++                </div>
++                <div className="flex items-center gap-2 shrink-0">
++                  <Badge tone={i === 0 ? "good" : "default"}>{l.converted}/{l.count}</Badge>
++                  <span className="font-mono text-xs text-zinc-400">€{l.value.toLocaleString()}</span>
++                </div>
++              </div>
++            ))}
++            {leaderboard.length === 0 && <div className="text-xs text-zinc-600">No data yet.</div>}
++          </div>
++        </div>
++      </div>
++
++      <style>{`.input-field { background: rgba(24,24,27,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; }`}</style>
++    </Layout>
++  );
++}
+diff --git a/frontend/src/pages/agency/TimeProfitTracker.jsx b/frontend/src/pages/agency/TimeProfitTracker.jsx
+new file mode 100644
+index 0000000..7baaaad
+--- /dev/null
++++ b/frontend/src/pages/agency/TimeProfitTracker.jsx
+@@ -0,0 +1,178 @@
++import { useMemo, useState } from "react";
++import Layout, { PageHeader, Badge, MetricCard } from "../../components/Layout";
++
++const STORE_KEY = "motionholic_os_time_sessions_v1";
++const TASK_TYPES = ["Editing", "Motion Graphics", "Color Grading", "Client Call", "Revisions", "Admin"];
++
++function loadStore() {
++  try {
++    const raw = JSON.parse(localStorage.getItem(STORE_KEY));
++    return Array.isArray(raw) ? raw : [];
++  } catch {
++    return [];
++  }
++}
++
++function saveStore(sessions) {
++  localStorage.setItem(STORE_KEY, JSON.stringify(sessions));
++}
++
++function fmtHours(mins) {
++  const h = Math.floor(mins / 60);
++  const m = mins % 60;
++  return `${h}h ${m}m`;
++}
++
++const emptyForm = { project: "", task_type: "Editing", minutes: "", revenue: "", date: new Date().toISOString().slice(0, 10) };
++
++export default function TimeProfitTracker() {
++  const [sessions, setSessions] = useState(loadStore);
++  const [form, setForm] = useState(emptyForm);
++  const [tab, setTab] = useState("projects");
++
++  const update = (next) => {
++    setSessions(next);
++    saveStore(next);
++  };
++
++  const logSession = () => {
++    if (!form.project.trim() || !form.minutes) return;
++    const entry = { id: `sess_${Date.now()}`, ...form, minutes: Number(form.minutes), revenue: Number(form.revenue || 0) };
++    update([entry, ...sessions]);
++    setForm({ ...emptyForm, project: form.project, task_type: form.task_type });
++  };
++
++  const removeSession = (id) => {
++    update(sessions.filter((s) => s.id !== id));
++  };
++
++  const byProject = useMemo(() => {
++    const g = {};
++    sessions.forEach((s) => {
++      if (!g[s.project]) g[s.project] = { project: s.project, minutes: 0, revenue: 0, sessions: 0 };
++      g[s.project].minutes += s.minutes;
++      g[s.project].revenue += s.revenue;
++      g[s.project].sessions += 1;
++    });
++    return Object.values(g)
++      .map((p) => ({ ...p, hourlyRate: p.minutes > 0 ? p.revenue / (p.minutes / 60) : 0 }))
++      .sort((a, b) => b.revenue - a.revenue);
++  }, [sessions]);
++
++  const totals = useMemo(() => {
++    const minutes = sessions.reduce((s, x) => s + x.minutes, 0);
++    const revenue = sessions.reduce((s, x) => s + x.revenue, 0);
++    return { minutes, revenue, hourlyAvg: minutes > 0 ? revenue / (minutes / 60) : 0 };
++  }, [sessions]);
++
++  return (
++    <Layout allowed={["admin"]}>
++      <PageHeader label="Admin / Time & Profit" title="Time & Profit Tracker" subtitle="Log time by session and task type to see real hourly profit per project — separate from the manual finance entries in Workflow Suite.">
++        <div className="flex gap-1 bg-zinc-900/40 border border-white/10 rounded-md p-1">
++          {["projects", "sessions", "reports"].map((t) => (
++            <button key={t} type="button" onClick={() => setTab(t)} className={`px-3 py-1.5 rounded text-xs font-medium capitalize ${tab === t ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-300"}`}>{t}</button>
++          ))}
++        </div>
++      </PageHeader>
++
++      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
++        <MetricCard label="Total Hours Logged" value={fmtHours(totals.minutes)} />
++        <MetricCard label="Total Revenue" value={`€${totals.revenue.toLocaleString()}`} tone="good" />
++        <MetricCard label="Avg. Effective Rate" value={`€${totals.hourlyAvg.toFixed(0)}/hr`} tone="blue" />
++      </div>
++
++      <div className="mb-6 border border-white/10 rounded-md bg-zinc-900/30 p-4 lg:p-5">
++        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
++          <input className="input-field" placeholder="Project" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} />
++          <select className="input-field" value={form.task_type} onChange={(e) => setForm({ ...form, task_type: e.target.value })}>
++            {TASK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
++          </select>
++          <input className="input-field" type="number" placeholder="Minutes" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
++          <input className="input-field" type="number" placeholder="Revenue attributed (€)" value={form.revenue} onChange={(e) => setForm({ ...form, revenue: e.target.value })} />
++          <button type="button" onClick={logSession} className="px-3 py-2 rounded-md bg-white/10 hover:bg-white/15 text-sm font-medium">Log session</button>
++        </div>
++      </div>
++
++      {tab === "projects" && (
++        <div className="border border-white/10 rounded-md bg-zinc-900/20 overflow-x-auto">
++          <table className="w-full text-sm">
++            <thead className="text-zinc-500 text-xs uppercase tracking-wide">
++              <tr>
++                <th className="text-left p-3">Project</th>
++                <th className="text-left p-3">Sessions</th>
++                <th className="text-left p-3">Hours</th>
++                <th className="text-left p-3">Revenue</th>
++                <th className="text-left p-3">Effective Rate</th>
++              </tr>
++            </thead>
++            <tbody>
++              {byProject.map((p) => (
++                <tr key={p.project} className="border-t border-white/5">
++                  <td className="p-3">{p.project}</td>
++                  <td className="p-3 text-zinc-400">{p.sessions}</td>
++                  <td className="p-3 font-mono">{fmtHours(p.minutes)}</td>
++                  <td className="p-3 font-mono">€{p.revenue.toLocaleString()}</td>
++                  <td className="p-3"><Badge tone={p.hourlyRate >= 40 ? "good" : p.hourlyRate >= 20 ? "warn" : "bad"}>€{p.hourlyRate.toFixed(0)}/hr</Badge></td>
++                </tr>
++              ))}
++              {byProject.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-zinc-600 text-sm">No sessions logged yet.</td></tr>}
++            </tbody>
++          </table>
++        </div>
++      )}
++
++      {tab === "sessions" && (
++        <div className="border border-white/10 rounded-md bg-zinc-900/20 overflow-x-auto">
++          <table className="w-full text-sm">
++            <thead className="text-zinc-500 text-xs uppercase tracking-wide">
++              <tr>
++                <th className="text-left p-3">Date</th>
++                <th className="text-left p-3">Project</th>
++                <th className="text-left p-3">Task</th>
++                <th className="text-left p-3">Duration</th>
++                <th className="text-left p-3">Revenue</th>
++                <th className="text-left p-3"></th>
++              </tr>
++            </thead>
++            <tbody>
++              {sessions.map((s) => (
++                <tr key={s.id} className="border-t border-white/5">
++                  <td className="p-3 text-zinc-400">{s.date}</td>
++                  <td className="p-3">{s.project}</td>
++                  <td className="p-3"><Badge>{s.task_type}</Badge></td>
++                  <td className="p-3 font-mono">{fmtHours(s.minutes)}</td>
++                  <td className="p-3 font-mono">€{s.revenue.toLocaleString()}</td>
++                  <td className="p-3"><button type="button" onClick={() => removeSession(s.id)} className="text-xs text-zinc-600 hover:text-red-400">Delete</button></td>
++                </tr>
++              ))}
++              {sessions.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-zinc-600 text-sm">No sessions logged yet.</td></tr>}
++            </tbody>
++          </table>
++        </div>
++      )}
++
++      {tab === "reports" && (
++        <div className="grid sm:grid-cols-2 gap-4">
++          {TASK_TYPES.map((type) => {
++            const typeSessions = sessions.filter((s) => s.task_type === type);
++            const minutes = typeSessions.reduce((s, x) => s + x.minutes, 0);
++            const revenue = typeSessions.reduce((s, x) => s + x.revenue, 0);
++            if (minutes === 0) return null;
++            return (
++              <div key={type} className="border border-white/10 rounded-md bg-zinc-900/20 p-4">
++                <div className="text-sm font-medium mb-2">{type}</div>
++                <div className="flex items-center justify-between text-xs text-zinc-400">
++                  <span>{fmtHours(minutes)}</span>
++                  <span className="font-mono">€{revenue.toLocaleString()}</span>
++                </div>
++              </div>
++            );
++          })}
++          {totals.minutes === 0 && <div className="text-sm text-zinc-600 text-center py-10 sm:col-span-2 border border-dashed border-white/10 rounded-md">No data to report yet.</div>}
++        </div>
++      )}
++
++      <style>{`.input-field { background: rgba(24,24,27,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 10px; font-size: 14px; width: 100%; }`}</style>
++    </Layout>
++  );
++}
+-- 
+2.43.0
+
